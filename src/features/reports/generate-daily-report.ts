@@ -79,7 +79,7 @@ export async function generateDailyReport(): Promise<string> {
   const m = computeMetrics();
   const cost = Number(m.aiCost || 0).toFixed(2);
   return [
-    '*Nexus SDR*',
+    '*OmniBot*',
     '',
     '📊 *Relatório Diário*',
     `👤 *Gestor:* ${ownerName}`,

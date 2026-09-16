@@ -54,7 +54,7 @@ export async function generateWeeklyReport(): Promise<string> {
     const totalCost = Number(costRow.total || 0).toFixed(2);
 
     const lines = [
-      `*Nexus SDR*`,
+      `*OmniBot*`,
       ``,
       `📊 *Relatório Semanal*`,
       `👤 *Gestor:* ${ownerName}`,

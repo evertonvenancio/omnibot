@@ -1,4 +1,5 @@
-# OmniBot (Nexus SDR)
+# OmniBot (IA & Automação de Vendas)
+
 
 OmniBot is an advanced, AI-powered Sales Development Representative (SDR) and lead qualification platform designed for automated outreach, lead management, and multi-channel engagement via **Instagram DMs** and **WhatsApp campaigns**.
 

@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Nexus SDR — Tech & Agri",
-  description: "Sistema Autônomo de Prospecção para Drones Agrícolas",
+  title: "OmniBot — IA & Automação de Vendas",
+  description: "Sistema Autônomo de Prospecção e Qualificação de Leads",
 };
 
 export default function RootLayout({

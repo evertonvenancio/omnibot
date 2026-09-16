@@ -1,6 +1,6 @@
-# SETUP — Manual do Operador Nexus SDR / OmniBot
+# SETUP — Manual do Operador OmniBot
 
-Bem-vindo ao Nexus SDR / OmniBot. Este documento é o guia oficial para colocar o sistema em funcionamento na sua máquina.
+Bem-vindo ao OmniBot. Este documento é o guia oficial para colocar o sistema em funcionamento na sua máquina.
 
 ---
 
@@ -86,7 +86,9 @@ Com o Chrome aberto nessa instância, **acesse instagram.com e faça login manua
 
 ---
 
-## 5. Configurando o Webhook na Meta (Túnel Reverso)
+## 5. Configurando o Webhook 
+
+
 
 O webhook da Meta precisa alcançar seu servidor Next.js local.
 
@@ -100,7 +102,8 @@ Cadastre a URL no Meta Developer Portal:
 
 ---
 
-## 6. Módulo do WhatsApp (`/whatsapp`)
+## 6. Módulo do WhatsApp (/whatsapp)
+
 
 O módulo do WhatsApp permite gerenciar campanhas de disparo ativo e prospecção em massa.
 
