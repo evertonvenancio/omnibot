@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: omnibot-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./.env:/app/.env
+      - ./data:/app/data
+    restart: always
+
+  worker:
+    build: .
+    container_name: omnibot-worker
+    command: pnpm run worker
+    volumes:
+      - ./.env:/app/.env
+      - ./data:/app/data
+    restart: always
