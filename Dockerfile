@@ -8,8 +8,10 @@ WORKDIR /app
 # Instalar pnpm
 RUN npm install -g pnpm
 
-# Copiar package.json, pnpm-lock.yaml e .npmrc
-COPY package.json pnpm-lock.yaml .npmrc* ./
+# Copiar arquivos de configuração
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+
+# Instalar dependências
 RUN pnpm install --frozen-lockfile
 
 # Copiar o resto do código
