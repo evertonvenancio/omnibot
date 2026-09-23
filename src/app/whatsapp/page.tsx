@@ -44,8 +44,13 @@ export default function WhatsAppPage() {
       console.warn('Por favor, preencha o número de telefone.');
       return;
     }
-    const result = await sendTestMessage(new FormData(document.getElementById('test-form') as HTMLFormElement));
-    console.log('Teste de mensagem enviado:', result);
+    try {
+      const result = await sendTestMessage(new FormData(document.getElementById('test-form') as HTMLFormElement));
+      console.log('Teste de mensagem enviado:', result);
+    } catch (error: any) {
+      alert('Erro ao montar teste: ' + error.message);
+      console.error('Erro ao testar envio:', error);
+    }
   };
 
   // Simulated log while campaign is active
@@ -106,7 +111,7 @@ export default function WhatsAppPage() {
       </header>
 
       {/* Single Card containing all configuration, fits viewport */}
-      <form action={createCampaign} className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl p-8 flex flex-col gap-6 overflow-hidden">
+      <form id="test-form" action={createCampaign} className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl p-8 flex flex-col gap-6 overflow-hidden">
         <div className="grid grid-cols-3 gap-8">
           {/* Column 1 */}
           <div className="flex flex-col gap-6">
