@@ -36,7 +36,11 @@ export async function getBrowserContext(): Promise<BrowserContext | MockBrowserC
   }
 
   try {
-    const cdpUrl = process.env.CHROME_CDP_URL || 'http://localhost:9222';
+    const cdpUrl = process.env.CHROME_CDP_URL;
+    if (!cdpUrl) {
+      console.error('❌ [BROWSER] CHROME_CDP_URL não definida no .env');
+      return null;
+    }
     console.log(`🔌 [BROWSER] Conectando ao Chrome via CDP em ${cdpUrl}...`);
     const browser = await chromium.connectOverCDP(cdpUrl);
 

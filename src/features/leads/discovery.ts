@@ -49,7 +49,8 @@ export async function runAutonomousDiscovery() {
     `).run(String(nextIdx));
 
     // 2. Connect to Chrome
-    const browser = await chromium.connectOverCDP('http://localhost:9222');
+    const cdpUrl = process.env.CHROME_CDP_URL || 'http://localhost:9222';
+    const browser = await chromium.connectOverCDP(cdpUrl);
     const context = browser.contexts()[0];
     const page = await context.newPage();
 
