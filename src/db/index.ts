@@ -20,33 +20,40 @@ sqlite.pragma('journal_mode = WAL');
 // Cria TODAS as tabelas do sistema se não existirem
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS system_settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    "key" TEXT NOT NULL UNIQUE,
+    value TEXT NOT NULL,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS leads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    instagram_handle TEXT,
+    instagram_handle TEXT NOT NULL UNIQUE,
+    source_post_url TEXT,
+    full_name TEXT,
     bio TEXT,
-    pipeline_status TEXT,
-    channel_status TEXT,
-    funnel_type TEXT,
-    score INTEGER,
+    funnel_type TEXT NOT NULL,
+    pipeline_status TEXT NOT NULL DEFAULT 'discovered',
+    channel_status TEXT NOT NULL DEFAULT 'browser_contact_pending',
+    followup_step INTEGER NOT NULL DEFAULT 0,
+    score INTEGER DEFAULT 0,
+    fit_reason TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    converted INTEGER DEFAULT 0,
-    conversion_quantity INTEGER DEFAULT 0
+    converted INTEGER NOT NULL DEFAULT 0,
+    conversion_quantity INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    lead_id INTEGER,
-    direction TEXT,
-    content TEXT,
-    status TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    lead_id INTEGER REFERENCES leads(id),
+    channel TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    content TEXT NOT NULL,
+    variant TEXT,
+    sent_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS ai_calls (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    lead_id INTEGER,
+    lead_id INTEGER REFERENCES leads(id),
     model TEXT NOT NULL,
     prompt_tokens INTEGER NOT NULL,
     completion_tokens INTEGER NOT NULL,
@@ -58,8 +65,7 @@ sqlite.exec(`
     type TEXT NOT NULL,
     payload TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
-    attempts INTEGER DEFAULT 0,
-    max_attempts INTEGER DEFAULT 3,
+    attempts INTEGER NOT NULL DEFAULT 0,
     error_message TEXT,
     run_at TEXT DEFAULT CURRENT_TIMESTAMP,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -67,26 +73,28 @@ sqlite.exec(`
   );
   CREATE TABLE IF NOT EXISTS wa_campaigns (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    status TEXT,
-    days_of_week TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',
     start_hour TEXT,
     end_hour TEXT,
-    ai_template TEXT,
     min_contacts INTEGER,
     max_contacts INTEGER,
+    days_of_week TEXT,
     humanization_profile TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    ai_template TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS wa_contacts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    campaign_id INTEGER,
+    campaign_id INTEGER NOT NULL REFERENCES wa_campaigns(id),
+    phone TEXT NOT NULL,
     name TEXT,
-    phone TEXT,
-    status TEXT,
+    variables_json TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
     fail_reason TEXT,
     sent_at TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (campaign_id) REFERENCES wa_campaigns(id)
+    error_message TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
