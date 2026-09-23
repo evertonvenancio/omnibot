@@ -45,7 +45,12 @@ export default function WhatsAppPage() {
       return;
     }
     try {
-      const result = await sendTestMessage(new FormData(document.getElementById('test-form') as HTMLFormElement));
+      const phoneInput = document.getElementById('input-test-phone') as HTMLInputElement;
+      const formData = new FormData();
+      formData.append('testPhone', phoneInput ? phoneInput.value : '');
+      const templateInput = document.getElementById('input-template') as HTMLTextAreaElement;
+      formData.append('template', templateInput ? templateInput.value : '');
+      const result = await sendTestMessage(formData);
       console.log('Teste de mensagem enviado:', result);
     } catch (error: any) {
       alert('Erro ao montar teste: ' + error.message);
@@ -204,6 +209,7 @@ export default function WhatsAppPage() {
                 <input
                   type="tel"
                   name="testPhone"
+                  id="input-test-phone"
                   placeholder="Número (ex: +5511999999999)"
                   className={inputClass + " flex-1"}
                   value={testPhone}
@@ -218,7 +224,7 @@ export default function WhatsAppPage() {
             {/* Template da mensagem */}
             <div className="flex flex-col flex-1">
               <label className={labelClass}>Template da mensagem</label>
-              <textarea name="ai_template" rows={2} className={textareaClass + " flex-1"} />
+              <textarea name="ai_template" id="input-template" rows={2} className={textareaClass + " flex-1"} />
             </div>
             {/* Botões */}
             <div className="flex flex-col gap-2">

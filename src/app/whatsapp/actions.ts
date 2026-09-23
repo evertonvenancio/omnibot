@@ -106,9 +106,9 @@ export async function pauseResumeCampaign(): Promise<void> {
 }
 
 export async function sendTestMessage(formData: FormData): Promise<string> {
-  const phone = formData.get('testPhone')?.toString() || formData.get('test_phone')?.toString() || '';
+  const phone = formData.get('testPhone')?.toString() || '';
   console.log("[WA TEST] Número bruto extraído:", phone);
-  const template = formData.get('ai_template')?.toString() || '';
+  const template = formData.get('template')?.toString() || '';
 
   const apiKey = process.env.OPENAI_API_KEY_WHATSAPP || process.env.OPENAI_API_KEY;
   const baseUrl = process.env.OPENAI_BASE_URL_WHATSAPP || process.env.OPENAI_BASE_URL || 'http://localhost:20128/v1';
