@@ -45,9 +45,8 @@ export default function WhatsAppPage() {
       return;
     }
     try {
-      const phoneInput = document.getElementById('input-test-phone') as HTMLInputElement;
       const formData = new FormData();
-      formData.append('testPhone', phoneInput ? phoneInput.value : '');
+      formData.append('testPhone', testPhone);
       const templateInput = document.getElementById('input-template') as HTMLTextAreaElement;
       formData.append('template', templateInput ? templateInput.value : '');
       const result = await sendTestMessage(formData);
