@@ -105,7 +105,7 @@ Cadastre a URL no Meta Developer Portal:
 ## 6. Módulo do WhatsApp (/whatsapp)
 
 
-O módulo do WhatsApp permite gerenciar campanhas de disparo ativo e prospecção em massa.
+O módulo do WhatsApp permite gerenciar campanhas de disparo ativo e prospecção em massa, utilizando a **Evolution API** para envios (substituindo o antigo Playwright/CDP).
 
 ### 6.1 Funcionalidades do Módulo
 - **Upload de Bases**: Suporte a arquivos `.csv` e `.xlsx` com contatos.
