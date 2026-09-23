@@ -22,7 +22,7 @@ OmniBot is an advanced, AI-powered Sales Development Representative (SDR) and le
 - **Framework**: Next.js 14 (App Router, Server Actions, `force-dynamic`)
 - **Database**: SQLite with `better-sqlite3` and Drizzle ORM
 - **Styling**: Tailwind CSS
-- **Automation / Browser Integration**: Playwright (Chrome DevTools Protocol for Instagram DM automation)
+- **Automation / Browser Integration**: Playwright (Chrome DevTools Protocol for Instagram DM automation). **WhatsApp now uses Evolution API (HTTP) for envios**
 - **Language**: TypeScript
 
 ## 📦 Quick Start

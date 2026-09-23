@@ -1,7 +1,11 @@
 import Database from 'better-sqlite3';
-import type { Page } from 'playwright';
+import { sendWhatsAppText } from '../integrations/evolution';
+import OpenAI from 'openai';
+import dotenv from 'dotenv';
 
-const WA_CHROME_URL = process.env.WA_CHROME_URL || 'http://127.0.0.1:9223';
+dotenv.config();
+
+const dbPath = process.env.DATABASE_URL || 'data/sqlite.db';
 
 interface WaContactRow {
   id: number;
@@ -28,8 +32,9 @@ interface HumanizationProfile {
   slow: number;
 }
 
-const OPENAI_API_KEY_WA = process.env.OPENAI_API_KEY_WA;
-const OPENAI_BASE_URL_WA = process.env.OPENAI_BASE_URL_WA;
+const OPENAI_API_KEY_WA = process.env.OPENAI_API_KEY_WHATSAPP || process.env.OPENAI_API_KEY;
+const OPENAI_BASE_URL_WA = process.env.OPENAI_BASE_URL_WHATSAPP || process.env.OPENAI_BASE_URL || 'http://localhost:20128/v1';
+const OPENAI_MODEL_WA = process.env.OPENAI_MODEL_WHATSAPP || process.env.OPENAI_MODEL || '9router';
 
 function isWithinOperatingWindow(campaign: WaCampaignRow): boolean {
   const daysStr = campaign.days_of_week || 'Seg,Ter,Qua,Qui,Sex';
@@ -61,7 +66,7 @@ function isWithinOperatingWindow(campaign: WaCampaignRow): boolean {
 }
 
 async function aiRewrite(template: string, profile: HumanizationProfile): Promise<string> {
-  if (!OPENAI_API_KEY_WA) {
+  if (!OPENAI_API_KEY_WA && process.env.DRY_RUN !== 'true') {
     return template;
   }
   try {
@@ -74,29 +79,25 @@ async function aiRewrite(template: string, profile: HumanizationProfile): Promis
 
     const prompt = `Reescreva a mensagem abaixo em PT-BR, mantendo o sentido original, sem usar o nome do destinatário. Use um tom ${style}. A mensagem NÃO deve conter o nome da pessoa. Responda apenas com a mensagem reescrita, sem comentários. Mensagem original: """${template}"""`;
 
-    const baseUrl = OPENAI_BASE_URL_WA || 'https://api.openai.com/v1';
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENAI_API_KEY_WA}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'Você reescreve mensagens comerciais curtas em português sem mencionar o nome do destinatário.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.7,
-      }),
-    });
-
-    if (!res.ok) {
-      console.error(`[WA] IA respondeu status ${res.status}; usando template original.`);
+    if (process.env.DRY_RUN === 'true' || OPENAI_API_KEY_WA === 'mock_key' || !OPENAI_API_KEY_WA) {
       return template;
     }
-    const data: any = await res.json();
-    const content = data?.choices?.[0]?.message?.content;
+
+    const openai = new OpenAI({
+      apiKey: OPENAI_API_KEY_WA,
+      baseURL: OPENAI_BASE_URL_WA,
+    });
+
+    const response = await openai.chat.completions.create({
+      model: OPENAI_MODEL_WA,
+      messages: [
+        { role: 'system', content: 'Você reescreve mensagens comerciais curtas em português sem mencionar o nome do destinatário.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.7,
+    });
+
+    const content = response.choices[0]?.message?.content;
     if (typeof content === 'string' && content.trim().length > 0) {
       return content.trim();
     }
@@ -107,82 +108,15 @@ async function aiRewrite(template: string, profile: HumanizationProfile): Promis
   }
 }
 
-function applyHumanization(message: string, profile: HumanizationProfile): string {
-  let result = message;
-  if (profile.moderated >= 50) {
-    // Insert a small typo on a random word longer than 4 chars
-    const words = result.split(/\s+/);
-    const candidates = words
-      .map((w, i) => ({ w, i }))
-      .filter(({ w }) => w.length > 5 && /[a-záéíóúâêôãõç]/i.test(w));
-    if (candidates.length > 0) {
-      const pick = candidates[Math.floor(Math.random() * candidates.length)];
-      const w = pick.w;
-      const idx = Math.floor(Math.random() * (w.length - 2)) + 1;
-      const arr = w.split('');
-      const tmp = arr[idx];
-      arr[idx] = arr[idx + 1];
-      arr[idx + 1] = tmp;
-      words[pick.i] = arr.join('');
-      result = words.join(' ');
-    }
-  }
-  if (profile.slow >= 50) {
-    result = result.split('').join(' ');
-  }
-  return result;
-}
-
-async function getWhatsAppPage(): Promise<Page> {
-  const { chromium } = await import('playwright');
-  const browser = await chromium.connectOverCDP(WA_CHROME_URL);
-  const context = browser.contexts()[0] || (await browser.newContext());
-  const page = await context.newPage();
-  await page.goto('https://web.whatsapp.com');
-  return page;
-}
-
-async function sendMessage(
-  page: Page,
-  phone: string,
-  message: string,
-  profile: HumanizationProfile
-): Promise<void> {
-  const url = `https://web.whatsapp.com/send?phone=${phone}&text=`;
-  await page.goto(url);
-  await page.waitForTimeout(2500);
-
-  // Wait for message box; if "Número não existe" or invalid number dialog appears, throw
-  const inputBox = await page.waitForSelector(
-    'div[contenteditable="true"][data-tab="10"]',
-    { timeout: 15000 }
-  ).catch(() => null);
-
-  if (!inputBox) {
-    const bodyText = (await page.locator('body').innerText().catch(() => '')) || '';
-    if (/n.o v.lido|not a valid|phone number|n.mero n.o existe/i.test(bodyText)) {
-      throw new Error('Número não existe');
-    }
-    throw new Error('Caixa de mensagem não encontrada');
-  }
-
-  if (profile.natural >= 60 || profile.moderated >= 60) {
-    await inputBox.click();
-    // pressSequentially is only on Locator; cast to any to avoid SVGElement | HTMLElement mismatch
-    await (inputBox as any).pressSequentially(message, { delay: 30 });
-  } else {
-    await inputBox.click();
-    await inputBox.fill(message);
-  }
-
-  await page.waitForTimeout(800);
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(2500);
-}
-
 export async function whatsappWorker(): Promise<void> {
-  const db = new Database('data/sqlite.db');
+  const db = new Database(dbPath);
   try {
+    const pausedRow = db.prepare("SELECT value FROM system_settings WHERE key = 'SYSTEM_PAUSED_WHATSAPP'").get() as { value: string } | undefined;
+    if (pausedRow?.value === 'true') {
+      console.log('[WA] Módulo pausado por system_settings (SYSTEM_PAUSED_WHATSAPP).');
+      return;
+    }
+
     const campaign = db
       .prepare("SELECT id, ai_template, start_hour, end_hour, days_of_week, min_contacts, max_contacts, humanization_profile FROM wa_campaigns WHERE status = 'active' ORDER BY id DESC LIMIT 1")
       .get() as WaCampaignRow | undefined;
@@ -213,31 +147,24 @@ export async function whatsappWorker(): Promise<void> {
       return;
     }
 
-    let page: Page | null = null;
-    try {
-      page = await getWhatsAppPage();
-    } catch (err) {
-      console.error('[WA] Falha ao conectar no Chrome via CDP (porta 9223):', err);
-      return;
-    }
-
     for (const job of jobs) {
       try {
         const aiMessage = await aiRewrite(campaign.ai_template, profile);
-        const finalMessage = applyHumanization(aiMessage, profile);
+        // O perfil de humanização controla o timing/atraso entre envios, sem digitação caractere por caractere.
+        const finalMessage = aiMessage;
 
         let attempt = 0;
         let sent = false;
-        let lastError: unknown = null;
+        let lastError: string | undefined = undefined;
         while (attempt < 3 && !sent) {
           attempt++;
-          try {
-            await sendMessage(page, job.phone, finalMessage, profile);
+          const result = await sendWhatsAppText(job.phone, finalMessage);
+          if (result.success) {
             sent = true;
-          } catch (e) {
-            lastError = e;
-            console.warn(`[WA] Tentativa ${attempt}/3 falhou para ${job.phone}:`, (e as Error).message);
-            await page.waitForTimeout(2000);
+          } else {
+            lastError = result.error;
+            console.warn(`[WA] Tentativa ${attempt}/3 falhou para ${job.phone}:`, result.error);
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
         }
 
@@ -246,13 +173,15 @@ export async function whatsappWorker(): Promise<void> {
           console.log(`[WA] Contato ${job.id} (${job.phone}) -> sent`);
         } else {
           db.prepare("UPDATE wa_contacts SET status = 'failed', fail_reason = ? WHERE id = ?").run(
-            (lastError as Error)?.message || 'Falha após 3 tentativas',
+            lastError || 'Falha após 3 tentativas',
             job.id
           );
           console.error(`[WA] Contato ${job.id} (${job.phone}) -> failed`);
         }
 
-        await page.waitForTimeout(5000);
+        // Timing de humanização entre disparos (ex: delay baseado no perfil)
+        const delayMs = profile.slow >= 50 ? 10000 : profile.moderated >= 50 ? 6000 : 3000;
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       } catch (e) {
         console.error(`[WA] Erro processando contato ${job.id}:`, e);
         db.prepare("UPDATE wa_contacts SET status = 'failed', fail_reason = ? WHERE id = ?").run((e as Error).message, job.id);

@@ -1,7 +1,11 @@
 'use server';
 import Database from 'better-sqlite3';
-
+import OpenAI from 'openai';
+import dotenv from 'dotenv';
 import { revalidatePath } from 'next/cache';
+import { sendWhatsAppText } from '@/integrations/evolution';
+
+dotenv.config();
 
 export interface WaContactRow {
   id: number;
@@ -43,7 +47,6 @@ export async function getWaContactsAction(): Promise<WaContactRow[]> {
 }
 
 export async function createCampaign(formData: FormData): Promise<void> {
-  // Reuso do código anterior que inseria a campanha sem iniciar envios
   const ai_template = formData.get('ai_template')?.toString() || '';
   const start_hour = formData.get('start_hour')?.toString() || '09:00';
   const end_hour = formData.get('end_hour')?.toString() || '18:00';
@@ -71,14 +74,12 @@ export async function createCampaign(formData: FormData): Promise<void> {
 }
 
 export async function startCampaign(): Promise<void> {
-  // Placeholder: atualiza status da última campanha salva para 'active'
   const db = new Database('data/sqlite.db');
   db.prepare(`UPDATE wa_campaigns SET status = 'active' WHERE status = 'saved' ORDER BY id DESC LIMIT 1`).run();
   db.close();
 }
 
 export async function cancelCampaign(): Promise<void> {
-  // Delete the most recent campaign regardless of status and its associated contacts
   const db = new Database('data/sqlite.db');
   const latest = db.prepare(`SELECT id FROM wa_campaigns ORDER BY id DESC LIMIT 1`).get() as { id: number } | undefined;
   if (latest) {
@@ -89,7 +90,6 @@ export async function cancelCampaign(): Promise<void> {
 }
 
 export async function pauseResumeCampaign(): Promise<void> {
-  // Toggle status between 'active' and 'paused' for the latest campaign
   const db = new Database('data/sqlite.db');
   const current = db.prepare(`SELECT id, status FROM wa_campaigns WHERE status IN ('active','paused') ORDER BY id DESC LIMIT 1`).get() as { id: number; status: string } | undefined;
   if (current) {
@@ -102,13 +102,42 @@ export async function pauseResumeCampaign(): Promise<void> {
 export async function sendTestMessage(formData: FormData): Promise<string> {
   const phone = formData.get('test_phone')?.toString() || '';
   const template = formData.get('ai_template')?.toString() || '';
-  // Simula geração de mensagem via IA (placeholder)
-  const generated = `Mensagem de teste para ${phone} baseada no template: ${template}`;
-  // Aqui enviaria via API WhatsApp; simulamos sucesso
-  console.log('[WA] Test message sent:', generated);
+
+  const apiKey = process.env.OPENAI_API_KEY_WHATSAPP || process.env.OPENAI_API_KEY;
+  const baseUrl = process.env.OPENAI_BASE_URL_WHATSAPP || process.env.OPENAI_BASE_URL || 'http://localhost:20128/v1';
+  const model = process.env.OPENAI_MODEL_WHATSAPP || process.env.OPENAI_MODEL || '9router';
+
+  let generated = template;
+
+  if (apiKey && apiKey !== 'your_whatsapp_openai_api_key' && process.env.DRY_RUN !== 'true') {
+    try {
+      const openai = new OpenAI({ apiKey, baseURL: baseUrl });
+      const prompt = `Reescreva a mensagem abaixo em PT-BR, mantendo o sentido original, sem usar o nome do destinatário. Responda apenas com a mensagem reescrita, sem comentários. Mensagem original: """${template}"""`;
+      const response = await openai.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: 'Você reescreve mensagens comerciais curtas em português.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+      });
+      const content = response.choices[0]?.message?.content;
+      if (typeof content === 'string' && content.trim().length > 0) {
+        generated = content.trim();
+      }
+    } catch (err) {
+      console.error('[WA] Falha na IA ao gerar mensagem de teste:', err);
+    }
+  }
+
+  const result = await sendWhatsAppText(phone, generated);
+  if (!result.success) {
+    throw new Error(`Falha ao enviar mensagem de teste via Evolution API: ${result.error}`);
+  }
+
+  console.log('[WA] Test message sent successfully to', phone);
   return generated;
 }
-
 
 export async function getCampaignStatus(): Promise<{status: string | null; exists: boolean; paused: boolean}> {
   const db = new Database('data/sqlite.db', { readonly: true });
