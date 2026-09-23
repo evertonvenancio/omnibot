@@ -7,16 +7,28 @@ const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '';
 const EVOLUTION_INSTANCE_NAME = process.env.EVOLUTION_INSTANCE_NAME || 'omnibot_wa';
 
 export async function sendWhatsAppText(number: string, text: string): Promise<{ success: boolean; error?: string }> {
+  console.log("[WA EVOLUTION] Número recebido para limpeza:", number);
+  if (!number || typeof number !== 'string' || number.trim() === '') {
+    throw new Error("Número de telefone vazio ou inválido.");
+  }
   const dryRun = process.env.DRY_RUN === 'true';
+
+  const digits = number.replace(/\D/g, '');
+  if (!digits) {
+    throw new Error("Número de telefone vazio ou inválido.");
+  }
+
+  const finalNumber = number.includes('@') ? number.trim() : `${digits}@s.whatsapp.net`;
 
   if (dryRun) {
     console.log('📱 [EVOLUTION_API - DRY_RUN] Mensagem que seria enviada ao WhatsApp:');
-    console.log(`Para: ${number}`);
+    console.log(`Para: ${finalNumber}`);
     console.log('---');
     console.log(text);
     console.log('---');
     return { success: true };
   }
+
 
   if (!EVOLUTION_API_KEY) {
     console.error('❌ [EVOLUTION_API] EVOLUTION_API_KEY não configurada no ambiente.');
@@ -33,7 +45,7 @@ export async function sendWhatsAppText(number: string, text: string): Promise<{ 
         'apikey': EVOLUTION_API_KEY,
       },
       body: JSON.stringify({
-        number,
+        number: finalNumber,
         text,
       }),
     });

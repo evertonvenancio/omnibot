@@ -74,10 +74,16 @@ export async function createCampaign(formData: FormData): Promise<void> {
 }
 
 export async function startCampaign(): Promise<void> {
-  const db = new Database('data/sqlite.db');
-  db.prepare(`UPDATE wa_campaigns SET status = 'active' WHERE status = 'saved' ORDER BY id DESC LIMIT 1`).run();
-  db.close();
+  try {
+    const db = new Database('data/sqlite.db');
+    db.prepare(`UPDATE wa_campaigns SET status = 'active' WHERE status = 'saved' ORDER BY id DESC LIMIT 1`).run();
+    db.close();
+  } catch (error) {
+    console.error('[WA ACTION ERROR]', error);
+    throw error;
+  }
 }
+
 
 export async function cancelCampaign(): Promise<void> {
   const db = new Database('data/sqlite.db');
@@ -101,6 +107,7 @@ export async function pauseResumeCampaign(): Promise<void> {
 
 export async function sendTestMessage(formData: FormData): Promise<string> {
   const phone = formData.get('test_phone')?.toString() || '';
+  console.log("[WA TEST] Número bruto extraído:", phone);
   const template = formData.get('ai_template')?.toString() || '';
 
   const apiKey = process.env.OPENAI_API_KEY_WHATSAPP || process.env.OPENAI_API_KEY;
