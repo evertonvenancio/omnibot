@@ -203,6 +203,7 @@ export default function WhatsAppPage() {
               <div className="flex gap-2 items-center">
                 <input
                   type="tel"
+                  name="testPhone"
                   placeholder="Número (ex: +5511999999999)"
                   className={inputClass + " flex-1"}
                   value={testPhone}

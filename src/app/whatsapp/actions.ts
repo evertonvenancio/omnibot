@@ -106,7 +106,7 @@ export async function pauseResumeCampaign(): Promise<void> {
 }
 
 export async function sendTestMessage(formData: FormData): Promise<string> {
-  const phone = formData.get('test_phone')?.toString() || '';
+  const phone = formData.get('testPhone')?.toString() || formData.get('test_phone')?.toString() || '';
   console.log("[WA TEST] Número bruto extraído:", phone);
   const template = formData.get('ai_template')?.toString() || '';
 
