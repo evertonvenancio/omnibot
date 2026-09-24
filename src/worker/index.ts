@@ -1,3 +1,4 @@
+
 import { sqliteInstance } from '@/db';
 import { processAiClassifyJob, runAutonomousDiscovery } from '@/features/leads/discovery';
 import { generateDailyReport } from '@/features/reports/generate-daily-report';
@@ -79,22 +80,11 @@ function runWorker(): void {
     console.log('🚫 [WORKER] Sistema WhatsApp Pausado. Aguardando retomada...');
   }
 
-
-  const settings = getSettings();
-
-  const operatingHours = settings.OPERATING_HOURS || '09:00-20:00';
-  const timeZone = settings.OPERATING_TIMEZONE || 'America/Sao_Paulo';
-
-  const [startStr, endStr] = operatingHours.split('-');
-  const [sh, sm] = startStr.split(':').map(Number);
-  const [eh, em] = endStr.split(':').map(Number);
-  const startMinutes = (sh * 60) + sm;
-  const endMinutes = (eh * 60) + em;
-
-  let currentMinutes = 9 * 60;
+  // Relatório semanal às 07:00 de segunda-feira
   try {
+    const settings = getSettings();
     const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone,
+      timeZone: settings.OPERATING_TIMEZONE || 'America/Sao_Paulo',
       hour: 'numeric',
       minute: 'numeric',
       hour12: false,
@@ -103,9 +93,6 @@ function runWorker(): void {
 
     const parts = formatter.formatToParts(new Date());
     const h = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-    const m = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
-    currentMinutes = (h * 60) + m;
-
     const weekdayPart = parts.find(p => p.type === 'weekday')?.value;
 
     if (weekdayPart === 'Monday' && h === 7) {
@@ -113,7 +100,6 @@ function runWorker(): void {
       const weeklyExists = sqlite.prepare(`
         SELECT id FROM jobs WHERE type = 'weekly_report' AND status IN ('pending', 'running', 'completed') AND date(run_at) = ?
       `).get(today);
-
       if (!weeklyExists) {
         console.log('📅 [WORKER] Segunda-feira 07:00. Enfileirando relatório semanal...');
         sqlite.prepare(`
@@ -123,8 +109,7 @@ function runWorker(): void {
       }
     }
   } catch (e) {
-    const now = new Date();
-    currentMinutes = now.getHours() * 60 + now.getMinutes();
+    // Ignora erros de formatação de horário
   }
 
   // === DENTRO DO HORÁRIO DE OPERAÇÃO ===
@@ -163,17 +148,19 @@ function runWorker(): void {
     return;
   }
 
-  // === TRAVA: JANELA DE DIAS E HORÁRIOS PARA ENVIOS ===
+  // === JANELA DE DIAS E HORÁRIOS APENAS PARA ENVIOS (DMs) ===
   if ((job.type === 'generate_first_dm' || job.type === 'send_dm_browser') && !isWithinOperatingWindow()) {
     if (!loggedOffHours) {
-      console.log(`💤 [WORKER] Fora da janela de envios (Dias/Horário). DMs e respostas adiadas.`);
+      console.log(`💤 [WORKER] Fora da janela de envios (Dias/Horário). DMs adiadas.`);
       loggedOffHours = true;
     }
+    // Reagenda apenas este job para 5 min no futuro, mas CONTINUA processando outros jobs
     const future = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     sqlite.prepare(
       `UPDATE jobs SET status = 'pending', run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(future, job.id);
-    return;
+    // NÃO faz return aqui - continua o loop para pegar o próximo job
+    return runWorker(); // Recursivo: tenta processar o próximo job imediatamente
   }
   loggedOffHours = false;
 
