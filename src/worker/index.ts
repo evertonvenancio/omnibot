@@ -46,7 +46,7 @@ function isWithinOperatingWindow(): boolean {
 
     const weekdayMap: Record<string, number> = {
       Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4,
-      Friday: 5, Saturday: 6, Sunday: 7,
+      Friday: 5, Saturday: 6, Sunday: 0,
     };
     const weekday = weekdayMap[weekdayStr] || 0;
 
@@ -154,13 +154,13 @@ function runWorker(): void {
       console.log(`💤 [WORKER] Fora da janela de envios (Dias/Horário). DMs adiadas.`);
       loggedOffHours = true;
     }
-    // Reagenda apenas este job para 5 min no futuro, mas CONTINUA processando outros jobs
+    // Reagenda apenas este job para 5 min no futuro
     const future = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     sqlite.prepare(
       `UPDATE jobs SET status = 'pending', run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(future, job.id);
-    // NÃO faz return aqui - continua o loop para pegar o próximo job
-    return runWorker(); // Recursivo: tenta processar o próximo job imediatamente
+    // Sai da função e espera o próximo setInterval natural de 5 segundos
+    return;
   }
   loggedOffHours = false;
 
