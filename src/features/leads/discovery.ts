@@ -104,21 +104,27 @@ export async function runAutonomousDiscovery() {
         await page.waitForTimeout(1500);
 
         let cleanUsername = '';
-        let handleAnchor = page.locator('header a[href*="/"]').first();
-        let href = await handleAnchor.getAttribute('href').catch(() => null);
+        const reservedWords = ['explore', 'reels', 'p', 'reel', 'stories', 'direct', 'accounts', 'voltar', 'back', 'home', 'login', 'signup', 'help', 'about', 'press', 'api', 'jobs', 'privacy', 'terms', 'locations', 'language'];
 
-        if (!href) {
-          const altAnchor = page.locator('main a[href*="/"].notranslate, article a[href*="/"]').first();
-          href = await altAnchor.getAttribute('href').catch(() => null);
-          if (href) handleAnchor = altAnchor;
+        const candidateAnchors = await page.locator('header a[href^="/"], article a[href^="/"], main a[href^="/"]').all();
+        for (const anchor of candidateAnchors) {
+          const anchorHref = await anchor.getAttribute('href').catch(() => null);
+          if (!anchorHref) continue;
+          const segments = anchorHref.split('/').filter(Boolean);
+          if (segments.length === 1) {
+            const candidate = segments[0];
+            const lower = candidate.toLowerCase();
+            if (!reservedWords.includes(lower) && /^[a-zA-Z0-9_\.]+$/.test(candidate)) {
+              cleanUsername = candidate;
+              break;
+            }
+          }
         }
 
-        if (href) cleanUsername = href.split('/').filter(Boolean)[0] || '';
         if (!cleanUsername) {
-          cleanUsername = (await safeText(handleAnchor)).replace('@', '').trim();
+          console.log(`[DISCOVERY] Post ${postHref}: nenhum handle de perfil válido encontrado, pulando.`);
+          continue;
         }
-
-        if (!cleanUsername || cleanUsername === 'explore' || cleanUsername === 'reels') continue;
 
         // VERIFICAÇÃO RIGOROSA DE ANTI-DUPLICAÇÃO POR HANDLE (Usuário) ANTES DE CONTINUAR
         const existingHandle = db.prepare('SELECT id, pipeline_status FROM leads WHERE instagram_handle = ?').get(cleanUsername) as { id: number; pipeline_status: string } | undefined;

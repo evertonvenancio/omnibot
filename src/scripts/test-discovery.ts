@@ -34,8 +34,7 @@ async function runDiscovery() {
   db.exec('DELETE FROM messages;');
   db.exec('DELETE FROM ai_calls;');
 
-  await page.goto(`https://www.instagram.com/explore/tags/${targetHashtag}/`);
-  await page.waitForLoadState('networkidle');
+  await page.goto(`https://www.instagram.com/explore/tags/${targetHashtag}/`, { waitUntil: 'domcontentloaded', timeout: 20000 });
   await page.waitForSelector('article, main', { timeout: 15000 }).catch(() => {});
 
   // 3. Coletar 15 links de posts (suportando /p/, /reel/, /reels/)
@@ -86,34 +85,32 @@ async function runDiscovery() {
 
       if (page.isClosed()) break;
 
-      // Extrai @username via seletores em cascata (suportando posts de fotos e reels)
-      let handleAnchor = page.locator('header a[href*="/"]').first();
-      let href = await handleAnchor.getAttribute('href').catch(() => null);
+      // Extrai @username via varredura de âncoras na header/article/main com validação estrita
+      const reservedWords = ['explore', 'reels', 'p', 'reel', 'stories', 'direct', 'accounts', 'voltar', 'back', 'home', 'login', 'signup', 'help', 'about', 'press', 'api', 'jobs', 'privacy', 'terms', 'locations', 'language'];
+      const candidateAnchors = await page.locator('header a[href^="/"], article a[href^="/"], main a[href^="/"]').all();
 
-      if (!href) {
-        // Fallback para Reels onde o header pode ter outra estrutura ou estar ausente
-        const altAnchor = page.locator('main a[href*="/"].notranslate, article a[href*="/"]').first();
-        href = await altAnchor.getAttribute('href').catch(() => null);
-        if (href) handleAnchor = altAnchor;
-      }
-
-      if (href) {
-        cleanUsername = href.split('/').filter(Boolean)[0] || '';
+      for (const anchor of candidateAnchors) {
+        const anchorHref = await anchor.getAttribute('href').catch(() => null);
+        if (!anchorHref) continue;
+        const segments = anchorHref.split('/').filter(Boolean);
+        if (segments.length === 1) {
+          const candidate = segments[0];
+          const lower = candidate.toLowerCase();
+          if (!reservedWords.includes(lower) && /^[a-zA-Z0-9_\.]+$/.test(candidate)) {
+            cleanUsername = candidate;
+            break;
+          }
+        }
       }
 
       if (!cleanUsername) {
-        cleanUsername = await safeText(handleAnchor);
-        cleanUsername = cleanUsername.replace('@', '').trim();
-      }
-
-      if (!cleanUsername || cleanUsername === 'explore' || cleanUsername === 'reels') {
-        console.log(`[DISCOVERY] Post ${i + 1} (${postHref}): username inválido ou não encontrado (${cleanUsername}), pulando.`);
+        console.log(`[DISCOVERY] Post ${i + 1} (${postHref}): nenhum handle de perfil válido encontrado, pulando.`);
         continue;
       }
 
       // Navega para o perfil
-      await page.goto(`https://www.instagram.com/${cleanUsername}/`, { timeout: 15000 });
-      await page.waitForLoadState('networkidle').catch(() => {});
+      await page.goto(`https://www.instagram.com/${cleanUsername}/`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.waitForTimeout(2000);
 
       if (page.isClosed()) break;
 
