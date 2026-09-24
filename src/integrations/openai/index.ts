@@ -124,14 +124,22 @@ ${systemPromptAddition}
     });
   }
 
-  const response = await openai.chat.completions.create({
-    model: modelName,
-    messages: [
-      { role: 'system', content: strictSystemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    temperature: 0.3,
+  // HARD TIMEOUT DE 30 SEGUNDOS
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error("Timeout de 30s na chamada da IA (GLM).")), 30000);
   });
+
+  const response = await Promise.race([
+    openai.chat.completions.create({
+      model: modelName,
+      messages: [
+        { role: 'system', content: strictSystemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.3,
+    }),
+    timeoutPromise
+  ]);
 
   const content = sanitizeAiResponse(response.choices[0]?.message?.content || '{}');
   const usage = response.usage || { prompt_tokens: 0, completion_tokens: 0 };

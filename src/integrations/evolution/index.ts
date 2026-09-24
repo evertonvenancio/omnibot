@@ -37,18 +37,26 @@ export async function sendWhatsAppText(number: string, text: string): Promise<{ 
 
   const url = `${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE_NAME}`;
 
+  // HARD TIMEOUT DE 15 SEGUNDOS
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error("Timeout de 15s na Evolution API.")), 15000);
+  });
+
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': EVOLUTION_API_KEY,
-      },
-      body: JSON.stringify({
-        number: finalNumber,
-        text,
+    const response = await Promise.race([
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': EVOLUTION_API_KEY,
+        },
+        body: JSON.stringify({
+          number: finalNumber,
+          text,
+        }),
       }),
-    });
+      timeoutPromise
+    ]);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
