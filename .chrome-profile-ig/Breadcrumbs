@@ -1,0 +1,84 @@
+5:44:52 Tab19 FinishNav1329
+5:44:53 Tab19 StartNav1330 #renderer-script #auto_subframe
+5:44:53 Tab19 FinishNav1330
+5:44:53 Tab19 PageLoad
+5:44:55 Tab19 PageLoad
+5:44:58 Tab19 StartNav1331 #renderer-user #auto_subframe
+5:44:59 Tab19 FinishNav1331
+5:44:59 Tab19 PageLoad
+5:45:29 Tab19 StartNav1332 #typed
+5:45:29 Tab19 FinishNav1332
+5:45:29 UserEducation.MessageNotShown
+5:45:29 UserEducation.MessageNotShown.IPH_ExtensionsZeroStatePromo
+5:45:29 UserEducation.MessageNotShown.FeatureDisabled
+5:45:29 Tab19 StartNav1333 #renderer-script #link
+5:45:29 Tab19 FinishNav1333
+5:45:30 Tab19 StartNav1334 #renderer-script #auto_subframe
+5:45:30 Tab19 FinishNav1334
+5:45:30 Tab19 PageLoad
+5:45:32 Tab19 PageLoad
+5:45:35 Tab19 StartNav1335 #renderer-user #auto_subframe
+5:45:35 Tab19 FinishNav1335
+5:45:37 Tab19 PageLoad
+5:45:40 Widget Closed: StatusBubble
+5:46:03 Tab19 StartNav1336 #typed
+5:46:04 Tab19 FinishNav1336
+5:46:04 Tab19 StartNav1337 #renderer-script #link
+5:46:04 Tab19 FinishNav1337
+5:46:05 Tab19 StartNav1338 #renderer-script #auto_subframe
+5:46:05 Tab19 FinishNav1338
+5:46:05 Tab19 PageLoad
+5:46:11 Tab19 PageLoad
+5:46:14 Tab19 StartNav1339 #renderer-user #auto_subframe
+5:46:14 Tab19 FinishNav1339
+5:46:15 Tab19 PageLoad
+5:46:37 Tab19 StartNav1340 #typed
+5:46:37 Tab19 FinishNav1340
+5:46:37 Tab19 StartNav1341 #renderer-script #link
+5:46:37 Tab19 FinishNav1341
+5:46:37 Tab19 PageLoad
+5:46:38 Tab19 StartNav1342 #renderer-script #auto_subframe
+5:46:38 Tab19 FinishNav1342
+5:46:38 Tab19 PageLoad
+5:46:41 Tab19 StartNav1343 #renderer-user #auto_subframe
+5:46:41 Tab19 FinishNav1343
+5:46:41 Tab19 PageLoad
+5:47:12 Browser1 Close Tab19 at 2
+5:47:12 Media.Hidden
+5:55:20 Widget Closed: StatusBubble
+5:56:41 CloseTab_Active
+5:56:41 CloseTab_NoAlertIndicator
+5:56:41 Widget Closed: StatusBubble
+5:56:41 Browser1 Close Tab18 at 1
+5:56:41 UserEducation.MessageNotShown
+5:56:41 UserEducation.MessageNotShown.IPH_ExtensionsZeroStatePromo
+5:56:41 UserEducation.MessageNotShown.FeatureDisabled
+5:56:41 Media.Shown
+5:56:52 Widget Closed: StatusBubble
+6:00:06 Widget Closed: StatusBubble
+6:04:59 Widget Closed: StatusBubble
+6:05:18 Widget Closed: StatusBubble
+6:05:37 Widget Closed: StatusBubble
+6:06:03 Widget Closed: StatusBubble
+6:07:59 Widget Closed: StatusBubble
+6:17:36 Widget Closed: StatusBubble
+6:46:37 Media.Hidden
+6:46:44 Media.Shown
+6:54:40 Widget Closed: StatusBubble
+6:55:09 Widget Closed: StatusBubble
+6:56:26 Widget Closed: StatusBubble
+6:57:19 Widget Closed: StatusBubble
+6:58:34 Widget Closed: StatusBubble
+7:05:02 Widget Closed: StatusBubble
+7:07:37 Widget Closed: StatusBubble
+7:10:16 Widget Closed: StatusBubble
+7:16:34 Widget Closed: StatusBubble
+7:32:57 Widget Closed: StatusBubble
+7:34:18 Widget Closed: StatusBubble
+7:40:01 CloseTab_Active
+7:40:01 CloseTab_NoAlertIndicator
+7:40:01 Browser1 Close Tab1 at 0
+7:40:01 Widget Closed: BrowserWidget
+7:40:01 Widget Closed: RoundedOmniboxResultsFrameWindow
+7:40:01 Widget Closed: RoundedOmniboxResultsFrameWindow
+7:40:01 Shutdown

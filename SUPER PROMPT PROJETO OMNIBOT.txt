@@ -1,0 +1,87 @@
+SUPER PROMPT: PROJETO OMNIBOT - INTEGRAÇÃO WHATSAPP E REESTRUTURAÇÃO UI
+Atue como Tech Lead, Engenheiro de Produto e Especialista em Automação Commercial SDR.
+
+Neste exato momento, o sistema atual (Nexus SDR - focado em Instagram) está estável em ~80%. Para não colocarmos esse progresso em risco, vamos iniciar um novo projeto chamado OminiBot.
+
+PASSO 0: INSTRUÇÃO DE ISOLAMENTO (CRÍTICO)
+
+Crie uma pasta na raiz do projeto atual chamada OminiBot.
+Copie TODA a estrutura do projeto atual (Next.js, src, package.json, drizzle, etc.) para dentro da pasta OminiBot.
+A partir de agora, VOCÊ TRABALHARÁ EXCLUSIVAMENTE DENTRO DA PASTA OminiBot. O projeto original (fora da pasta) está congelado e intocável. Nenhum arquivo fora de OminiBot deve ser modificado.
+O OminiBot será a evolução multicanal do nosso sistema. Ele manterá a inteligência do Instagram intacta e adicionará o Módulo de WhatsApp.
+
+REGRAS DE OURO E INFRAESTRUTURA INTERNA (NÃO QUEBRE NUNCA)
+STACK: Next.js (App Router), TypeScript strict, Tailwind CSS, SQLite (better-sqlite3), Drizzle ORM, Playwright (CDP). Roda localmente.
+PADRÃO VISUAL DARK SaaS: Tema escuro (slate-950, slate-900). Cards com bordas arredondadas, métricas com barras de cor.
+PADRONIZAÇÃO DE UI (OBRIGATÓRIO): Todos os botões de navegação interna (Início, Configurações, Exceções, Pausar Sistema) DEVEM ter exatamente o MESMO tamanho físico (largura fixa baseada na palavra "Configurações", independente do texto interno).
+PLUGINS (OBRIGATÓRIO): Use o Context7 para validar a documentação do Playwright e Next.js. Use o Playwright MCP para inspecionar o DOM real do WhatsApp Web e do Instagram Web sempre que for criar seletores.
+PARTE 1: REESTRUTURAÇÃO DA INTERFACE (DASHBOARD E TOP BAR)
+A tela inicial (Dashboard) e a navegação devem ser redesenhadas para refletir a arquitetura multicanal.
+
+TOP BAR PRINCIPAL:
+Deve conter APENAS dois botões de navegação global: Instagram e WhatsApp (mesmo tamanho).
+O botão gigante de "Pausar/Retomar Sistema" DEVE SUMIR da tela inicial.
+DASHBOARD (Tela Inicial /):
+Dividida em DOIS cards lado a lado ocupando a tela.
+Card Esquerdo (Instagram): Título "Instagram". Ao lado do título, uma pequena bolinha de status (verde = operante, laranja = pausado). Abaixo, o custo de IA do Instagram. Abaixo do custo, dois mini-funis lado a lado: "Clientes Diretos" e "Afiliados", espelhando as quantidades do Kanban (Descoberto, Qualificado, Abordado, Respondeu, Encaminhado).
+Card Direito (WhatsApp): Título "WhatsApp". Bolinha de status (verde/laranja). Abaixo, a agenda da campanha da semana escalonada verticalmente (Seg, Ter, Qua, Qui, Sex, Sáb, Dom). Cada dia mostra: Total a Enviar, Enviados, Em Andamento, Falhas. Mesmo os dias futuros devem aparecer com o total planejado.
+ABA INSTAGRAM (Rota /instagram/leads):
+Ao clicar no botão "Instagram" no top bar, redireciona direto para a página de Leads (Kanban).
+O top bar interno desta aba terá 4 botões de tamanho igual: Início, Configurações, Exceções, Pausar Sistema.
+O botão "Pausar Sistema" aqui pausa APENAS o Worker do Instagram.
+ABA WHATSAPP (Rota /whatsapp):
+Ao clicar no botão "WhatsApp", redireciona direto para a tela de Configuração de Campanha do WhatsApp.
+O top bar interno terá 4 botões: Início, Configurações, Exceções, Pausar Sistema (Pausa APENAS o Worker do WhatsApp).
+Não existe Kanban no WhatsApp.
+PARTE 2: MÓDULO WHATSAPP - INTERFACE DE CAMPANHA (/whatsapp)
+A tela do WhatsApp é focada em disparo frio inteligente. Deve conter:
+
+Upload de Base: Botão para subir arquivo CSV/XLSX. O sistema lê a Coluna A (Nome) e Coluna B (Telefone).
+Template de Mensagem (IA): Uma caixa de texto onde o operador escreve o padrão da mensagem. Ex: "Olá, somos especialistas em drones DJI, temos o modelo T25P disponível." A IA gerará variações dessa mensagem para não ficar idêntica, mas seguirá o padrão.
+Agendamento: Checkboxes para os dias da semana (Segunda a Domingo). Campos para Hora Início e Hora Fim.
+Anti-Duplicação: Checkbox "Não reenviar para contatos já enviados".
+Humanização (Perfis): Sliders para distribuir a tipagem de envio: Natural (%), Ultra (%), Turtle (%).
+Botão "Iniciar Campanha" e "Exportar Relatório (CSV)".
+PARTE 3: BANCO DE DADOS E WORKER (LÓGICA INTERNA)
+Novas Tabelas no SQLite (Dentro de OminiBot):
+wa_campaigns: Configuração da campanha (dias, horários, template).
+wa_contacts: Contatos importados (nome, telefone, status: pending, sent, failed, ddd_invalid).
+Mantenha as tabelas do Instagram intactas.
+Arquitetura de Workers Separados:
+O sistema deve ter dois Workers independentes rodando no mesmo processo Node.js: instagramWorker e whatsappWorker.
+Eles compartilham o mesmo banco SQLite, mas processam filas de jobs diferentes (instagram_job vs wa_job).
+Integração IA (WhatsApp):
+O .env terá uma chave OPENAI_API_KEY_WA e OPENAI_BASE_URL_WA (para apontar para a GLM-4.5-Flash).
+A IA do WhatsApp NÃO usa o nome do lead. Regra rígida: Deve iniciar sempre com saudação genérica ("Olá, meu amigo" ou "Bom dia") para evitar erros de Excel e fuso horário.
+PARTE 4: MOTOR DE ENVIO WHATSAPP (PLAYWRIGHT CDP)
+A lógica de envio do WhatsApp portará as melhores práticas do script Python anterior, usando Playwright.
+
+Conexão do Chrome:
+O WhatsApp Web rodará em um Chrome ISOLADO na porta 9223 (--remote-debugging-port=9223), separado do Chrome do Instagram.
+O Worker conecta via chromium.connectOverCDP('http://127.0.0.1:9223').
+Lógica de Envio de cada Contato (Job send_whatsapp_message):
+Limpar o telefone (remover caracteres especiais).
+Navegar para https://web.whatsapp.com/send?phone={numero}&text={mensagem_encoded}.
+Retentativas: Se a página demorar para carregar ou der erro, tentar ATÉ 3 VEZES. Se falhar nas 3, marcar como failed (motivo: Timeout ou Número inválido) e ir para o próximo.
+Humanização (Typos): Ao digitar a mensagem (usando pressSequentially), o robô deve simular erros de teclado (digitar letra próxima, apagar com Backspace, digitar a correta) baseado na probabilidade configurada. Delays variados por caractere conforme o perfil (Natural, Ultra, Turtle).
+Esperar a caixa de mensagem carregar. Se a tela mostrar "Número não existe", marcar failed.
+Pressionar Enter para enviar.
+Atualizar wa_contacts para sent e salvar o horário.
+Resiliência de Fila:
+Se a internet cair ou o Chrome fechar no meio do envio, o Job atual volta para pending. O Worker aguarda a reconexão e retoma dali, sem perder a sequência da campanha semanal.
+Exportação de Relatório:
+Server Action que faz SELECT * FROM wa_contacts WHERE campaign_id = ? e gera um CSV com Colunas: Nome, Telefone, Status, Motivo_Falha, Data_Envio. Botão de download na tela do WhatsApp.
+PARTE 5: SEU PAPEL E EXECUÇÃO (OBRIGATÓRIO)
+USE OS PLUGINS: Antes de escrever os seletores do WhatsApp Web, use o Playwright MCP para inspecionar o DOM de web.whatsapp.com. Use o Context7 para garantir a sintaxe correta do Next.js Server Actions e do Playwright CDP.
+ISOLAMENTO: Tudo que você fizer daqui para frente DEVE ser dentro da pasta OminiBot. Se você tocar em um arquivo fora dessa pasta, o build quebrará.
+BUILD: Rode pnpm run build DENTRO da pasta OminiBot ao final de cada fase.
+ORDEM DE EXECUÇÃO DESTA FASE:
+Crie a pasta OminiBot e copie os arquivos do projeto atual para dentro dela.
+Atualize o nome do sistema para "OminiBot" no layout.
+Refatore a Interface (Dashboard dividido, Top Bar, Botões padronizados, Status por bolinha).
+Crie as tabelas de Banco de Dados do WhatsApp e as Rotas (/whatsapp).
+Implemente a Interface de Upload, Agendamento e Sliders de Humanização.
+Implemente o Motor de Envio Playwright (Porta 9223, retentativas, typos).
+Implemente a Fila de Jobs e o Worker Isolado do WhatsApp com a IA GLM-4.5-Flash (Saudação genérica).
+Valide tudo com pnpm run build.
+Não entregue planos. Não pare no meio. Implemente, compile, mostre o build limpo e me dê o status. Comece agora copiando a pasta OminiBot.

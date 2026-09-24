@@ -340,4 +340,10 @@ function runWorker(): void {
 }
 
 console.log('🚀 Worker iniciado. Monitorando jobs...');
-setInterval(runWorker, 5000);
+setInterval(() => {
+  try {
+    runWorker();
+  } catch (e) {
+    console.error('❌ [WORKER] Crash no setInterval:', e);
+  }
+}, 5000);

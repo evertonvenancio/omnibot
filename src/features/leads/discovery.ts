@@ -20,6 +20,8 @@ export function enqueueDiscoveryJobs() {
 export async function runAutonomousDiscovery() {
   console.log('[DISCOVERY] Iniciando radar autônomo...');
   const db = new Database(dbPath);
+  let browser: any;
+  let page: any;
 
   try {
     // 1. Hashtags Dinâmicas & Rotação
@@ -50,9 +52,14 @@ export async function runAutonomousDiscovery() {
 
     // 2. Connect to Chrome
     const cdpUrl = process.env.CHROME_CDP_URL || 'http://localhost:9222';
-    const browser = await chromium.connectOverCDP(cdpUrl);
+    browser = await Promise.race([
+      chromium.connectOverCDP(cdpUrl),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout CDP 15s')), 15000)
+      )
+    ]);
     const context = browser.contexts()[0];
-    const page = await context.newPage();
+    page = await context.newPage();
 
     try {
       await page.goto(`https://www.instagram.com/explore/tags/${targetHashtag}/`, { waitUntil: 'domcontentloaded', timeout: 20000 });
@@ -227,11 +234,11 @@ export async function runAutonomousDiscovery() {
       }
     }
 
-    await page.close().catch(() => {});
-    await browser.close().catch(() => {});
-  } catch (e) {
+    } catch (e) {
     console.error('[DISCOVERY] Erro no radar autônomo:', e);
   } finally {
+    if (page) await page.close().catch(() => {});
+    if (browser) await browser.close().catch(() => {});
     db.close();
   }
 }
