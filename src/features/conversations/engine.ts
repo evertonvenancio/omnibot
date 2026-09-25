@@ -68,6 +68,12 @@ Retorne APENAS um JSON:
   `.trim();
 
   const classifyResponse = await generateCompletion(classifySystem, `Histórico:\n${historyStr}\n\nÚltima mensagem do lead: "${inboundText}"`, 'FAST', leadId);
+
+  if (!classifyResponse) {
+    console.error(`🧠 [IA INTENT] Falha ao classificar lead ${lead.instagram_handle}: resposta nula da IA`);
+    return;
+  }
+
   const cleanClassifyJson = classifyResponse.replace(/```json/g, '').replace(/```/g, '').trim();
   const classification = JSON.parse(cleanClassifyJson);
 
@@ -105,6 +111,12 @@ Retorne APENAS um JSON:
   `.trim();
 
   const actionResponse = await generateCompletion(actionSystem, `Lead Funil: ${lead.funnel_type}\nMensagem: "${inboundText}"`, 'NORMAL', leadId);
+
+  if (!actionResponse) {
+    console.error(`🤖 [IA ACTION] Falha ao obter ação para lead ${lead.instagram_handle}: resposta nula da IA`);
+    return;
+  }
+
   const cleanActionJson = actionResponse.replace(/```json/g, '').replace(/```/g, '').trim();
   const decision = JSON.parse(cleanActionJson);
 

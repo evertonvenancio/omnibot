@@ -24,7 +24,7 @@ export async function processFollowUps(): Promise<void> {
       console.log(`🔄 [FOLLOWUP 1] Gerando follow-up 1 para lead ${lead.instagram_handle}`);
 
       const prompt = `Gerar mensagem curta de acompanhamento (follow-up 1) em PT-BR para ${lead.full_name || lead.instagram_handle}, lembrando da mensagem anterior sobre redução de custo de operação com drones agrícolas. Sem emojis.`;
-      const reply = await generateCompletion('Você é um SDR agrícola profissional.', prompt, 'FAST', lead.id);
+      const reply = await generateCompletion('Você é um SDR agrícola profissional.', prompt, 'FAST', lead.id) || '';
 
       // Salva mensagem no histórico
       sqlite.prepare(`

@@ -184,8 +184,11 @@ function runWorker(): void {
             `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
           ).run(job.id);
           console.log(`✅ [WORKER] Job ${job.id} concluído.`);
-        } catch (err) {
-          throw err;
+        } catch (err: any) {
+          console.error(`[WORKER] Erro ao classificar IA:`, err.message);
+          sqlite.prepare(
+            `UPDATE jobs SET status = 'failed', result = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+          ).run(err.message, job.id);
         }
       })();
     } else if (job.type === 'daily_report') {
@@ -251,13 +254,21 @@ function runWorker(): void {
             try {
               const prompt = `Gere uma primeira abordagem comercial curta e direta em PT-BR para ${lead.full_name || lead.instagram_handle}, focada em redução de custos operacionais com drones agrícolas DJI para lavouras. Sem emojis.`;
               const { generateCompletion } = await import('@/integrations/openai');
-              messageContent = await generateCompletion('Você é um SDR agrícola experiente.', prompt, 'FAST', lead.id);
-              model = 'gpt-4o-mini';
-              promptTokens = prompt.length;
-              completionTokens = messageContent.length;
-              estimatedCost = (promptTokens / 1000 * 0.00015) + (completionTokens / 1000 * 0.0006);
-            } catch (aiErr) {
-              console.error(`❌ [WORKER] Erro de conexão com a IA para lead ${leadId}:`, aiErr);
+              const aiResult = await generateCompletion('Você é um SDR agrícola experiente.', prompt, 'FAST', lead.id);
+
+              if (!aiResult) {
+                console.error(`[WORKER] Erro ao classificar IA para lead ${leadId}: Limite de taxa atingido ou erro 429`);
+                messageContent = 'Erro ao gerar resposta da IA - limite de taxa atingido.';
+                model = 'fallback';
+              } else {
+                messageContent = aiResult;
+                model = 'gpt-4o-mini';
+                promptTokens = prompt.length;
+                completionTokens = messageContent.length;
+                estimatedCost = (promptTokens / 1000 * 0.00015) + (completionTokens / 1000 * 0.0006);
+              }
+            } catch (aiErr: any) {
+              console.error(`❌ [WORKER] Erro de conexão com a IA para lead ${leadId}:`, aiErr.message);
               messageContent = 'Erro ao conectar com a IA para gerar a primeira DM.';
               model = 'fallback';
             }

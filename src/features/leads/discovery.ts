@@ -135,6 +135,14 @@ export async function runAutonomousDiscovery() {
 
         // VERIFICAÇÃO RIGOROSA DE ANTI-DUPLICAÇÃO POR HANDLE (Usuário) ANTES DE CONTINUAR
         const existingHandle = db.prepare('SELECT id, pipeline_status FROM leads WHERE instagram_handle = ?').get(cleanUsername) as { id: number; pipeline_status: string } | undefined;
+
+        // Checagem de pausa instantânea no meio da execução
+        const pausedCheck = db.prepare("SELECT value FROM system_settings WHERE key = 'SYSTEM_PAUSED_INSTAGRAM'").get() as { value: string } | undefined;
+        if (pausedCheck && pausedCheck.value === 'true') {
+          console.log('[DISCOVERY] Sistema pausado pelo operador. Abortando radar...');
+          break;
+        }
+
         let leadId: number;
 
         if (existingHandle) {
@@ -322,6 +330,12 @@ Legendas Recentes dos Posts: ${recentCaptions || 'Nenhuma'}
     `.trim();
 
     const aiResponseJson = await generateCompletion(systemAddition, userPrompt, 'FAST');
+
+    if (!aiResponseJson) {
+      console.error(`[CLASSIFY] Falha ao classificar lead ${handle}: resposta nula da IA`);
+      return;
+    }
+
     const cleanJsonStr = aiResponseJson.replace(/```json/g, '').replace(/```/g, '').trim();
     const result = JSON.parse(cleanJsonStr);
 

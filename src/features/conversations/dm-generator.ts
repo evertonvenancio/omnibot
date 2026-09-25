@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3';
 import { generateCompletion } from '@/integrations/openai';
-import { getSettings } from '@/lib/settings';
 
 const dbPath = 'data/sqlite.db';
 
@@ -26,7 +25,7 @@ Bio: ${lead.bio}
   `.trim();
 
   const message = await generateCompletion(systemAddition, userPrompt, 'NORMAL', leadId);
-  return message;
+  return message || '';
 }
 
 export function saveMessageDraft(leadId: number, content: string, channel: 'BROWSER' | 'META_API') {

@@ -48,7 +48,7 @@ export async function generateCompletion(
   userPrompt: string,
   modelType: 'FAST' | 'NORMAL' = 'NORMAL',
   leadId: number | null = null
-): Promise<string> {
+): Promise<string | null> {
   const monthlyBudgetUsd = parseFloat(process.env.OPENAI_MONTHLY_BUDGET_USD || '50');
   const currentSpent = getCurrentMonthCost();
 
@@ -130,16 +130,31 @@ ${systemPromptAddition}
   });
 
   const response = await Promise.race([
-    openai.chat.completions.create({
-      model: modelName,
-      messages: [
-        { role: 'system', content: strictSystemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3,
-    }),
+    (async () => {
+      try {
+        return await openai.chat.completions.create({
+          model: modelName,
+          messages: [
+            { role: 'system', content: strictSystemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.3,
+        });
+      } catch (error: any) {
+        if (error.status === 429) {
+          console.warn("⚠️ [IA] Limite atingido (429). Aguardando 60s...");
+          await new Promise(r => setTimeout(r, 60000));
+          return null;
+        }
+        throw error;
+      }
+    })(),
     timeoutPromise
   ]);
+
+  if (!response) {
+    return null;
+  }
 
   const content = sanitizeAiResponse(response.choices[0]?.message?.content || '{}');
   const usage = response.usage || { prompt_tokens: 0, completion_tokens: 0 };
