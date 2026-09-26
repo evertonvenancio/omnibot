@@ -124,9 +124,9 @@ ${systemPromptAddition}
     });
   }
 
-  // HARD TIMEOUT DE 30 SEGUNDOS
+  // HARD TIMEOUT DE 60 SEGUNDOS
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error("Timeout de 30s na chamada da IA (GLM).")), 30000);
+    setTimeout(() => reject(new Error("Timeout de 60s na chamada da IA (GLM).")), 60000);
   });
 
   const response = await Promise.race([
