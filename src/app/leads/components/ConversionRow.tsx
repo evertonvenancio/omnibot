@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { updateLeadConversionAction } from '../actions';
+import DateDisplay from '@/components/DateDisplay';
 
 interface Lead {
   id: number;
@@ -32,7 +33,7 @@ export default function ConversionRow({ lead }: { lead: Lead }) {
     <div className="flex justify-between items-center bg-slate-800 border border-slate-700 rounded-lg p-3 hover:bg-slate-700 transition">
       <div className="flex items-center gap-4">
         <span className="text-slate-200 font-medium">{lead.instagram_handle}</span>
-        <span className="text-slate-400 text-sm">{lead.created_at}</span>
+        <span className="text-slate-400 text-sm"><DateDisplay dateString={lead.created_at} /></span>
       </div>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">

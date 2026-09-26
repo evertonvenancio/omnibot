@@ -187,7 +187,7 @@ function runWorker(): void {
         } catch (err: any) {
           console.error(`[WORKER] Erro ao classificar IA:`, err.message);
           sqlite.prepare(
-            `UPDATE jobs SET status = 'failed', result = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+            `UPDATE jobs SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
           ).run(err.message, job.id);
         }
       })();

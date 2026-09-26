@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import DateFilter from '../components/DateFilter';
+import DateDisplay from '@/components/DateDisplay';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +65,7 @@ export default function RejeitadosPage({ searchParams }: PageProps) {
               >
                 <div className="flex items-center gap-4">
                   <span className="text-slate-200 font-medium">{lead.instagram_handle}</span>
-                  <span className="text-slate-400 text-sm">{lead.created_at}</span>
+                  <span className="text-slate-400 text-sm"><DateDisplay dateString={lead.created_at} /></span>
                 </div>
                 <div className="text-slate-400 text-sm italic text-amber-500/80">
                   Rejeitado

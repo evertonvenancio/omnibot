@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { revalidatePath } from 'next/cache';
 import LeadsTopBar from '@/components/LeadsTopBar';
 import PageContainer from '@/components/PageContainer';
+import DateDisplay from '@/components/DateDisplay';
 export const dynamic = 'force-dynamic';
 
 const dbPath = 'data/sqlite.db';
@@ -114,7 +115,7 @@ export default function ExceptionsPage() {
                     <p className="text-xs text-rose-300 font-mono mt-2 bg-rose-950/20 p-2 rounded">
                       Erro: {j.error_message || 'Desconhecido'}
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">Tentativas: {j.attempts} | Última falha: {j.updated_at}</p>
+                    <p className="text-xs text-slate-400 mt-1">Tentativas: {j.attempts} | Última falha: <DateDisplay dateString={j.updated_at} /></p>
                   </div>
 
                   <form action={retryJob}>
