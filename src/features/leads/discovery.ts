@@ -17,22 +17,23 @@ export function enqueueDiscoveryJobs() {
   console.log('[DISCOVERY] Placeholder for enqueueDiscoveryJobs');
 }
 
-export async function runAutonomousDiscovery() {
+export async function runAutonomousDiscovery(): Promise<number> {
   console.log('[DISCOVERY] Iniciando radar autônomo...');
   const db = new Database(dbPath);
   let browser: any;
   let page: any;
+  let newLeadsCount = 0;
 
   try {
     // 1. Hashtags Dinâmicas & Rotação
     const settings = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('ICP_KEYWORDS') as { value: string } | undefined;
     if (!settings || !settings.value) {
       console.log('[DISCOVERY] Nenhuma ICP_KEYWORDS configurada.');
-      return;
+      return 0;
     }
 
     const keywords = settings.value.split(' ').filter(k => k.startsWith('#')).map(k => k.replace('#', ''));
-    if (keywords.length === 0) return;
+    if (keywords.length === 0) return 0;
 
     let lastIdxSetting = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('last_discovery_hashtag') as { value: string } | undefined;
     let nextIdx = 0;
@@ -70,22 +71,42 @@ export async function runAutonomousDiscovery() {
       return;
     }
 
-    // 3. Coletar links de posts (Profundidade ajustada para 20 posts e 15 tentativas)
+    // 3. Coletar links de posts com scroll inteligente e detecção de estagnação
     const postHrefs: string[] = [];
     const seenHrefs = new Set<string>();
-
+    let staleCount = 0;
     let scrollAttempts = 0;
+
     while (postHrefs.length < 20 && scrollAttempts < 15) {
       const anchors = await page.locator('a[href*="/p/"], a[href*="/reel/"], a[href*="/reels/"]').all();
+
+      // Detectar posts novos nesta rolagem
+      const currentBatchHrefs: string[] = [];
       for (const a of anchors) {
         const href = await a.getAttribute('href').catch(() => null);
         if (href && !seenHrefs.has(href)) {
           seenHrefs.add(href);
+          currentBatchHrefs.push(href);
           postHrefs.push(href);
           if (postHrefs.length >= 20) break;
         }
       }
-      if (postHrefs.length < 30) {
+
+      // Atualizar contagem de estagnação
+      if (currentBatchHrefs.length === 0) {
+        staleCount++;
+      } else {
+        staleCount = 0;
+      }
+
+      // Abortar se 2 rolagens seguidas sem novos posts
+      if (staleCount >= 2) {
+        console.log(`[DISCOVERY] Feed estagnado após ${scrollAttempts} scrolls. Abortando busca de novos posts.`);
+        break;
+      }
+
+      // Continuar scroll se ainda não atingimos o alvo
+      if (postHrefs.length < 20 && scrollAttempts < 15) {
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await page.waitForTimeout(2500);
         scrollAttempts++;
@@ -160,6 +181,7 @@ export async function runAutonomousDiscovery() {
           VALUES (?, ?, 'A_CLIENT', 'discovered', 'browser_contact_pending')
         `).run(cleanUsername, postUrl);
         leadId = Number(info.lastInsertRowid);
+        newLeadsCount++;
         console.log(`[DISCOVERY] Novo lead salvo: ${cleanUsername} (ID: ${leadId})`);
 
         // LEITURA DINÂMICA DE CONTEXTO (PERFIL)
@@ -248,6 +270,7 @@ export async function runAutonomousDiscovery() {
     if (page) await page.close().catch(() => {});
     if (browser) await browser.close().catch(() => {});
     db.close();
+    return newLeadsCount;
   }
 }
 

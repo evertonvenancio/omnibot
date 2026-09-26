@@ -19,6 +19,7 @@ interface JobRow {
 
 let isDiscovering = false;
 let loggedOffHours = false;
+let nextDiscoveryAllowedAt = 0;
 
 function isWithinOperatingWindow(): boolean {
   const sqliteSettings = sqliteInstance.prepare(
@@ -139,12 +140,28 @@ function runWorker(): void {
       WHERE type = 'ai_classify' AND status IN ('pending', 'running')
     `).get() as { count: number };
 
+    // === PAUSA ANTI-BANIMENTO ===
+    if (Date.now() < nextDiscoveryAllowedAt) {
+      const remainingMs = nextDiscoveryAllowedAt - Date.now();
+      const remainingMin = Math.ceil(remainingMs / 60000);
+      console.log(`💤 [WORKER] Pausa anti-banimento. Radar desativado por mais ${remainingMin} minutos.`);
+      return;
+    }
+
     if (aiClassifyJobs.count <= 4 && !isDiscovering) {
       console.log('[WORKER] Fila de classificação abaixo do limiar (80% do lote). Iniciando radar de prospecção autônomo...');
       isDiscovering = true;
       runAutonomousDiscovery()
-        .then(() => {
+        .then((newLeadsCount: number) => {
           isDiscovering = false;
+
+          // === PAUSA VARIÁVEL APÓS ESGOTO DE HASHTAGS ===
+          if (newLeadsCount === 0) {
+            const pauseMs = Math.floor(Math.random() * (1200000 - 480000 + 1)) + 480000;
+            nextDiscoveryAllowedAt = Date.now() + pauseMs;
+            const pauseMin = Math.round(pauseMs / 60000);
+            console.log(`💤 [WORKER] Todas as hashtags esgotaram. Pausando radar por ${pauseMin} minutos para evitar banimento.`);
+          }
         })
         .catch(err => {
           console.error('[WORKER] Erro no radar autônomo:', err);
