@@ -70,19 +70,19 @@ export async function runAutonomousDiscovery() {
       return;
     }
 
-    // 3. Coletar links de posts (Profundidade aumentada para 30 posts e 15 tentativas)
+    // 3. Coletar links de posts (Profundidade ajustada para 20 posts e 15 tentativas)
     const postHrefs: string[] = [];
     const seenHrefs = new Set<string>();
 
     let scrollAttempts = 0;
-    while (postHrefs.length < 30 && scrollAttempts < 15) {
+    while (postHrefs.length < 20 && scrollAttempts < 15) {
       const anchors = await page.locator('a[href*="/p/"], a[href*="/reel/"], a[href*="/reels/"]').all();
       for (const a of anchors) {
         const href = await a.getAttribute('href').catch(() => null);
         if (href && !seenHrefs.has(href)) {
           seenHrefs.add(href);
           postHrefs.push(href);
-          if (postHrefs.length >= 30) break;
+          if (postHrefs.length >= 20) break;
         }
       }
       if (postHrefs.length < 30) {

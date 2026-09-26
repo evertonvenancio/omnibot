@@ -67,6 +67,12 @@ function isWithinOperatingWindow(): boolean {
 function runWorker(): void {
   const sqlite = sqliteInstance;
 
+  // === LIMPEZA DE JOBS FANTASMAS ===
+  sqlite.prepare(`
+    UPDATE jobs SET status = 'failed', error_message = 'Timeout 5min (Job Fantasma)'
+    WHERE status = 'running' AND datetime(updated_at) < datetime('now', '-5 minutes')
+  `).run();
+
   // === BLINDAGEM: PAUSA GERAL DO SISTEMA ===
   const pausedRow = sqlite.prepare("SELECT value FROM system_settings WHERE key = 'SYSTEM_PAUSED_INSTAGRAM'").get() as { value: string } | undefined;
   if (pausedRow && pausedRow.value === 'true') {
@@ -127,14 +133,14 @@ function runWorker(): void {
   `).get() as JobRow | undefined;
 
   if (!job) {
-    const criticalJobs = sqlite.prepare(`
+    // === REGRA DO RADAR: Conta apenas jobs de classificação ===
+    const aiClassifyJobs = sqlite.prepare(`
       SELECT count(*) as count FROM jobs
-      WHERE status = 'pending'
-      AND type IN ('ai_classify', 'generate_first_dm', 'send_dm_browser', 'process_inbound_message')
+      WHERE type = 'ai_classify' AND status IN ('pending', 'running')
     `).get() as { count: number };
 
-    if (criticalJobs.count === 0 && !isDiscovering) {
-      console.log('[WORKER] Fila ociosa. Iniciando radar de prospecção autônomo...');
+    if (aiClassifyJobs.count <= 4 && !isDiscovering) {
+      console.log('[WORKER] Fila de classificação abaixo do limiar (80% do lote). Iniciando radar de prospecção autônomo...');
       isDiscovering = true;
       runAutonomousDiscovery()
         .then(() => {
