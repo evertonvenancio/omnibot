@@ -68,10 +68,10 @@ function isWithinOperatingWindow(): boolean {
 function runWorker(): void {
   const sqlite = sqliteInstance;
 
-  // === LIMPEZA DE JOBS FANTASMAS ===
+  // === LIMPEZA DE JOBS FANTASMAS (pending + running) ===
   sqlite.prepare(`
-    UPDATE jobs SET status = 'failed', error_message = 'Timeout 5min (Job Fantasma)'
-    WHERE status = 'running' AND datetime(updated_at) < datetime('now', '-5 minutes')
+    UPDATE jobs SET status = 'failed', error_message = 'Timeout Job Fantasma (pending/running)'
+    WHERE status IN ('pending', 'running') AND datetime(created_at) < datetime('now', '-10 minutes')
   `).run();
 
   // === BLINDAGEM: PAUSA GERAL DO SISTEMA ===

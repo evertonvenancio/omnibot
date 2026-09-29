@@ -29,11 +29,15 @@ export async function runAutonomousDiscovery(): Promise<number> {
     const settings = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('ICP_KEYWORDS') as { value: string } | undefined;
     if (!settings || !settings.value) {
       console.log('[DISCOVERY] Nenhuma ICP_KEYWORDS configurada.');
+      db.close();
       return 0;
     }
 
     const keywords = settings.value.split(' ').filter(k => k.startsWith('#')).map(k => k.replace('#', ''));
-    if (keywords.length === 0) return 0;
+    if (keywords.length === 0) {
+      db.close();
+      return 0;
+    }
 
     let lastIdxSetting = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('last_discovery_hashtag') as { value: string } | undefined;
     let nextIdx = 0;
@@ -67,8 +71,9 @@ export async function runAutonomousDiscovery(): Promise<number> {
       await page.waitForSelector('article, main', { timeout: 10000 }).catch(() => {});
     } catch (err) {
       console.warn(`[DISCOVERY] Falha ao carregar hashtag #${targetHashtag}:`, err);
-      await page.close().catch(() => {});
-      return;
+      if (page) await page.close().catch(() => {});
+      db.close();
+      return 0;
     }
 
     // 3. Coletar links de posts com scroll inteligente e detecção de estagnação
@@ -114,6 +119,7 @@ export async function runAutonomousDiscovery(): Promise<number> {
     }
 
     // 4. Loop Direto nos posts (Anti-Duplicação rigorosa na raiz e por Handle)
+    let httpErrors = 0;
     for (const postHref of postHrefs) {
       if (page.isClosed()) break;
 
@@ -237,6 +243,9 @@ export async function runAutonomousDiscovery(): Promise<number> {
         // Atualiza a bio no lead
         db.prepare('UPDATE leads SET bio = ? WHERE id = ?').run(bio || '', leadId);
 
+        // Pausa humano (5-15 segundos) após sucesso
+        await page.waitForTimeout(Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000);
+
         // Pacote de Contexto
         const contextPayload = {
           leadId,
@@ -260,11 +269,15 @@ export async function runAutonomousDiscovery(): Promise<number> {
           console.log(`📥 [DISCOVERY] Contexto montado para @${cleanUsername}. Job ai_classify enfileirado.`);
         }
       } catch (e) {
-        console.warn(`[DISCOVERY] Falha ao processar post ${postHref}:`, e);
+        console.warn(`[DISCOVERY] Post inacessível (bloqueio ou deletado). Pulando.`);
+        httpErrors++;
+        if (httpErrors >= 3) {
+          console.warn(`[DISCOVERY] 3 erros HTTP consecutivos detectados. Abortando hashtag para evitar bloqueio.`);
+          break;
+        }
       }
     }
-
-    } catch (e) {
+  } catch (e) {
     console.error('[DISCOVERY] Erro no radar autônomo:', e);
   } finally {
     if (page) await page.close().catch(() => {});
