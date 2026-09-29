@@ -21,6 +21,16 @@ export async function processFollowUps(): Promise<void> {
     `).all(threeDaysAgo) as any[];
 
     for (const lead of leadsFu1) {
+      // Checagem de aborto antes de processar follow-up
+      const currentLead = sqlite.prepare("SELECT channel_status, pipeline_status FROM leads WHERE id = ?").get(lead.id) as any;
+      const abortStates = ['api_active', 'replied', 'do_not_contact', 'completed'];
+      const shouldAbort = abortStates.includes(currentLead?.channel_status) || currentLead?.pipeline_status === 'closed';
+
+      if (shouldAbort) {
+        console.log(`[FOLLOWUP] Lead ${lead.id} (${lead.instagram_handle}) já respondeu ou foi encerrado. Abortando follow-up.`);
+        continue;
+      }
+
       console.log(`🔄 [FOLLOWUP 1] Gerando follow-up 1 para lead ${lead.instagram_handle}`);
 
       const prompt = `Gerar mensagem curta de acompanhamento (follow-up 1) em PT-BR para ${lead.full_name || lead.instagram_handle}, lembrando da mensagem anterior sobre redução de custo de operação com drones agrícolas. Sem emojis.`;
@@ -59,6 +69,16 @@ export async function processFollowUps(): Promise<void> {
     const whatsappLink = getSettingVal(sqlite, 'WHATSAPP_LINK') || 'https://wa.me/';
 
     for (const lead of leadsFu2) {
+      // Checagem de aborto antes de processar follow-up
+      const currentLead = sqlite.prepare("SELECT channel_status, pipeline_status FROM leads WHERE id = ?").get(lead.id) as any;
+      const abortStates = ['api_active', 'replied', 'do_not_contact', 'completed'];
+      const shouldAbort = abortStates.includes(currentLead?.channel_status) || currentLead?.pipeline_status === 'closed';
+
+      if (shouldAbort) {
+        console.log(`[FOLLOWUP] Lead ${lead.id} (${lead.instagram_handle}) já respondeu ou foi encerrado. Abortando follow-up.`);
+        continue;
+      }
+
       console.log(`🔄 [FOLLOWUP 2] Aplicando follow-up final (encerramento) para ${lead.instagram_handle}`);
       const text = `Olá ${lead.full_name || 'produtor'}, agradeço o espaço. Não quero ser invasivo. Deixo meu contato direto caso mude de ideia ou queira saber mais sobre os drones DJI: ${whatsappLink}. Um ótimo trabalho na fazenda!`;
 
