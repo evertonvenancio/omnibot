@@ -227,7 +227,7 @@ export default function WhatsAppPage() {
             </div>
             {/* Botões */}
             <div className="flex flex-col gap-2">
-              <button type="submit" className={topBtn}>Criar campanha</button>
+              <button type="submit" formAction={createCampaign} className={topBtn}>Criar campanha</button>
               <button type="button" className={topBtn} onClick={() => {/* placeholder for export action */}} >Exportar Relatório (CSV)</button>
             </div>
           </div>

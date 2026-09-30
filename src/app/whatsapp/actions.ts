@@ -47,30 +47,56 @@ export async function getWaContactsAction(): Promise<WaContactRow[]> {
 }
 
 export async function createCampaign(formData: FormData): Promise<void> {
-  const ai_template = formData.get('ai_template')?.toString() || '';
-  const start_hour = formData.get('start_hour')?.toString() || '09:00';
-  const end_hour = formData.get('end_hour')?.toString() || '18:00';
-  const min_contacts = parseInt(formData.get('min_contacts')?.toString() || '1', 10);
-  const max_contacts = parseInt(formData.get('max_contacts')?.toString() || '1', 10);
-  const days = formData.getAll('days').map((d) => d.toString());
-  const natural = parseInt(formData.get('human_natural')?.toString() || '60', 10);
-  const moderated = parseInt(formData.get('human_moderated')?.toString() || '30', 10);
-  const slow = parseInt(formData.get('human_slow')?.toString() || '10', 10);
+  try {
+    const ai_template = formData.get('ai_template')?.toString() || '';
+    const start_hour = formData.get('start_hour')?.toString() || '09:00';
+    const end_hour = formData.get('end_hour')?.toString() || '18:00';
+    const min_contacts = parseInt(formData.get('min_contacts')?.toString() || '1', 10);
+    const max_contacts = parseInt(formData.get('max_contacts')?.toString() || '1', 10);
+    const days = formData.getAll('days').map((d) => d.toString());
+    const natural = parseInt(formData.get('human_natural')?.toString() || '60', 10);
+    const moderated = parseInt(formData.get('human_moderated')?.toString() || '30', 10);
+    const slow = parseInt(formData.get('human_slow')?.toString() || '10', 10);
 
-  const db = new Database('data/sqlite.db');
-  const stmt = db.prepare(
-    `INSERT INTO wa_campaigns (status, days_of_week, start_hour, end_hour, ai_template, min_contacts, max_contacts, humanization_profile) VALUES ('saved', ?, ?, ?, ?, ?, ?, ?)`
-  );
-  stmt.run(
-    JSON.stringify(days),
-    start_hour,
-    end_hour,
-    ai_template,
-    min_contacts,
-    max_contacts,
-    JSON.stringify({ natural, moderated, slow })
-  );
-  db.close();
+    const db = new Database('data/sqlite.db');
+    const stmt = db.prepare(
+      `INSERT INTO wa_campaigns (status, days_of_week, start_hour, end_hour, ai_template, min_contacts, max_contacts, humanization_profile) VALUES ('saved', ?, ?, ?, ?, ?, ?, ?)`
+    );
+    stmt.run(
+      JSON.stringify(days),
+      start_hour,
+      end_hour,
+      ai_template,
+      min_contacts,
+      max_contacts,
+      JSON.stringify({ natural, moderated, slow })
+    );
+
+    // Processa o upload de contatos
+    const file = formData.get('base') as File | null;
+    if (file) {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+
+      const insertStmt = db.prepare('INSERT INTO wa_contacts (campaign_id, name, phone, status) VALUES (?, ?, ?, ?)');
+      const campaignId = db.prepare('SELECT id FROM wa_campaigns ORDER BY id DESC LIMIT 1').get() as { id: number };
+
+      for (const line of lines) {
+        const [name, phone] = line.split(',').map(s => s.trim().replace(/['"]/g, ''));
+        if (phone && phone.match(/^\d{10,}$/)) {
+          const phoneDigits = phone.replace(/\D/g, '');
+          insertStmt.run(campaignId.id, name || 'Contato', `${phoneDigits}`, 'pending');
+        }
+      }
+    }
+
+    db.close();
+    revalidatePath('/whatsapp');
+    console.log('[WA] Campanha criada e contatos importados com sucesso!');
+  } catch (error: any) {
+    console.error('[WA] Erro ao criar campanha:', error);
+    throw error;
+  }
 }
 
 export async function startCampaign(): Promise<void> {

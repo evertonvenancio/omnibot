@@ -110,6 +110,11 @@ async function aiRewrite(template: string, profile: HumanizationProfile): Promis
   }
 }
 
+export async function runWhatsAppWorker(): Promise<void> {
+  console.log('[WA WORKER] Iniciando execução do worker do WhatsApp...');
+  await whatsappWorker();
+}
+
 export async function whatsappWorker(): Promise<void> {
   const db = new Database(dbPath);
   try {
