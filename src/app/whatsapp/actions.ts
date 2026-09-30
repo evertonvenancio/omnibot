@@ -93,14 +93,6 @@ export async function createCampaign(formData: FormData): Promise<void> {
     db.close();
     revalidatePath('/whatsapp');
     console.log('[WA] Campanha criada e contatos importados com sucesso!');
-
-    // Dispara o worker do WhatsApp para processar a campanha imediatamente
-    const triggerDb = new Database('data/sqlite.db');
-    triggerDb.prepare(`
-      INSERT INTO jobs (type, payload, status, run_at)
-      VALUES ('whatsapp_worker', '{}', 'pending', CURRENT_TIMESTAMP)
-    `).run();
-    triggerDb.close();
   } catch (error: any) {
     console.error('[WA] Erro ao criar campanha:', error);
     throw error;

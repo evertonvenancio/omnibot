@@ -6,6 +6,7 @@ import { generateWeeklyReport } from '@/features/reports/generate-weekly-report'
 import { sendWhatsAppReport } from '@/integrations/callmebot';
 import { getSettings } from '@/lib/settings';
 import { processFollowUps } from '@/features/conversations/followups';
+import { runWhatsAppWorker } from './whatsappWorker';
 
 interface JobRow {
   id: number;
@@ -20,6 +21,7 @@ interface JobRow {
 let isDiscovering = false;
 let loggedOffHours = false;
 let nextDiscoveryAllowedAt = 0;
+let isWhatsAppRunning = false;
 
 function isWithinOperatingWindow(): boolean {
   const sqliteSettings = sqliteInstance.prepare(
@@ -373,6 +375,19 @@ function runWorker(): void {
   }
 }
 
+// === LOOP AUTÔNOMO DO WHATSAPP (Motor Independente) ===
+async function runWhatsAppLoop() {
+  if (isWhatsAppRunning) return;
+  isWhatsAppRunning = true;
+  try {
+    await runWhatsAppWorker();
+  } catch (err) {
+    console.error('[WA LOOP ERROR]', err);
+  } finally {
+    isWhatsAppRunning = false;
+  }
+}
+
 console.log('🚀 Worker iniciado. Monitorando jobs...');
 setInterval(() => {
   try {
@@ -380,4 +395,9 @@ setInterval(() => {
   } catch (e) {
     console.error('❌ [WORKER] Crash no setInterval:', e);
   }
+}, 5000);
+
+// Loop autônomo do WhatsApp (independente do Instagram)
+setInterval(() => {
+  runWhatsAppLoop();
 }, 5000);

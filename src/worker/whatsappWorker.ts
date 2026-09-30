@@ -33,6 +33,7 @@ interface HumanizationProfile {
 }
 
 const MARCADOR_CAMPANHA = '​‌‍';
+let outsideWindowLogged = false;
 
 const OPENAI_API_KEY_WA = process.env.OPENAI_API_KEY_WHATSAPP || process.env.OPENAI_API_KEY;
 const OPENAI_BASE_URL_WA = process.env.OPENAI_BASE_URL_WHATSAPP || process.env.OPENAI_BASE_URL || 'http://localhost:20128/v1';
@@ -135,7 +136,21 @@ export async function whatsappWorker(): Promise<void> {
       }
 
       if (!isWithinOperatingWindow(campaign)) {
-        console.log('[WA] Fora da janela de envio (dia/horário).');
+        const fmt = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Sao_Paulo',
+          hour: 'numeric',
+          minute: 'numeric',
+          hour12: false,
+        });
+        const parts = fmt.formatToParts(new Date());
+        const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+        const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+        const nowStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+
+        if (!outsideWindowLogged || nowStr === '00:00') {
+          console.log(`[WA] Fora da janela de envio. Aguardando: ${campaign.start_hour} às ${campaign.end_hour}.`);
+          outsideWindowLogged = true;
+        }
         return;
       }
 
