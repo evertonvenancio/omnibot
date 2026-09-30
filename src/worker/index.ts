@@ -6,7 +6,6 @@ import { generateWeeklyReport } from '@/features/reports/generate-weekly-report'
 import { sendWhatsAppReport } from '@/integrations/callmebot';
 import { getSettings } from '@/lib/settings';
 import { processFollowUps } from '@/features/conversations/followups';
-import { createCampaign } from '@/app/whatsapp/actions';
 
 interface JobRow {
   id: number;
@@ -86,14 +85,6 @@ function runWorker(): void {
   const pausedWhatsRow = sqlite.prepare("SELECT value FROM system_settings WHERE key = 'SYSTEM_PAUSED_WHATSAPP'").get() as { value: string } | undefined;
   if (pausedWhatsRow && pausedWhatsRow.value === 'true') {
     console.log('🚫 [WORKER] Sistema WhatsApp Pausado. Aguardando retomada...');
-  }
-
-  // === DISPARO DO WORKER DO WHATSAPP ===
-  if (pausedWhatsRow?.value !== 'true') {
-    sqlite.prepare(`
-      INSERT INTO jobs (type, payload, status, run_at)
-      VALUES ('whatsapp_worker', '{}', 'pending', CURRENT_TIMESTAMP)
-    `).run();
   }
 
   // Relatório semanal às 07:00 de segunda-feira
@@ -256,8 +247,8 @@ function runWorker(): void {
     } else if (job.type === 'whatsapp_worker') {
       (async () => {
         try {
-          const { whatsappWorker } = await import('@/worker/whatsappWorker');
-          await whatsappWorker();
+          const { runWhatsAppWorker } = await import('@/worker/whatsappWorker');
+          await runWhatsAppWorker();
           sqlite.prepare(`UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(job.id);
           console.log(`✅ [WORKER] WhatsApp worker job ${job.id} completed.`);
         } catch (err) {
