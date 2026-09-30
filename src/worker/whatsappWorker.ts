@@ -32,6 +32,8 @@ interface HumanizationProfile {
   slow: number;
 }
 
+const MARCADOR_CAMPANHA = '​‌‍';
+
 const OPENAI_API_KEY_WA = process.env.OPENAI_API_KEY_WHATSAPP || process.env.OPENAI_API_KEY;
 const OPENAI_BASE_URL_WA = process.env.OPENAI_BASE_URL_WHATSAPP || process.env.OPENAI_BASE_URL || 'http://localhost:20128/v1';
 const OPENAI_MODEL_WA = process.env.OPENAI_MODEL_WHATSAPP || process.env.OPENAI_MODEL || '9router';
@@ -151,8 +153,8 @@ export async function whatsappWorker(): Promise<void> {
       for (const job of jobs) {
         try {
           const aiMessage = await aiRewrite(campaign.ai_template, profile);
-          // O perfil de humanização controla o timing/atraso entre envios, sem digitação caractere por caractere.
-          const finalMessage = aiMessage;
+          // Adiciona marcador esteganográfico para identificação de campanha
+          const finalMessage = aiMessage + MARCADOR_CAMPANHA;
 
           let attempt = 0;
           let sent = false;
