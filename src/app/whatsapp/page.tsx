@@ -174,34 +174,29 @@ export default function WhatsAppPage() {
           </div>
 
           {/* Column 2 (Centro) */}
-          <div className="flex flex-col gap-6">
-            {/* Linhas 1-4: Template da Mensagem (IA) */}
-            <div className="flex flex-col flex-1">
-              <label className={labelClass}>Template da mensagem</label>
-              <textarea name="ai_template" id="input-template" rows={2} className={textareaClass + " flex-1"} />
-            </div>
-
-            {/* Linha 5: Botão Criar Campanha */}
-            <button type="submit" className={topBtn}>Criar campanha</button>
+          <div className="flex flex-col gap-2 h-full">
+            <label className="text-sm font-medium text-slate-400">Template da mensagem</label>
+            <textarea
+              name="ai_template"
+              id="input-template"
+              className="w-full flex-1 min-h-0 resize-none rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+              placeholder="Escreva o template base..."
+            />
+            <button type="submit" className="h-10 px-4 rounded-lg bg-slate-800 border border-slate-700 text-sm font-medium text-slate-200 hover:bg-slate-700 w-full">Criar campanha</button>
           </div>
 
           {/* Column 3 (Direita) */}
-          <div className="flex flex-col gap-6 h-full">
-            {/* Linhas 1-4: Log de Envio */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 h-full">
-              <h2 className="text-base font-semibold text-white mb-4">Log de Envio</h2>
-              <div className="bg-slate-950 border border-slate-800 rounded-lg p-4 h-full overflow-y-auto font-mono text-xs text-slate-400">
-                {logs.map((l, i) => (
-                  <p key={i}>{l}</p>
-                ))}
-                {logs.length === 0 && (
-                  <p className="text-slate-500 italic">Nenhum log disponível</p>
-                )}
-              </div>
+          <div className="flex flex-col gap-2 h-full">
+            <label className="text-sm font-medium text-slate-400">Log de Envio</label>
+            <div className="w-full flex-1 min-h-0 overflow-y-auto rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm text-slate-100">
+              {logs.map((l, i) => (
+                <p key={i}>{l}</p>
+              ))}
+              {logs.length === 0 && (
+                <p className="text-slate-500 italic">Nenhum log disponível</p>
+              )}
             </div>
-
-            {/* Linha 5: Botão Exportar Relatório */}
-            <button type="button" className={topBtn} onClick={() => {/* placeholder for export action */}} >Exportar Relatório (CSV)</button>
+            <button type="button" className="h-10 px-4 rounded-lg bg-slate-800 border border-slate-700 text-sm font-medium text-slate-200 hover:bg-slate-700 w-full">Exportar Relatório (CSV)</button>
           </div>
         </div>
 
