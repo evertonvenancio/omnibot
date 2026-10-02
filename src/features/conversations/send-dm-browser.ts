@@ -165,12 +165,15 @@ export async function processSendDmBrowserJob(payloadStr: string): Promise<{ sta
           db.prepare(`UPDATE leads SET channel_status = 'human_review_required' WHERE id = ?`).run(leadId);
           return { status: 'blocked', leadId };
         }
-        // Qualquer TimeoutError ou erro de automação: marcar para revisão humana sem matar o worker
+
+        // Qualquer TimeoutError ou erro de automação: rever status para 'qualified' para tentar novamente
         console.error(`❌ [SEND_DM] Erro de automação no lead ${leadId}: ${errorMsg}`);
         try {
-          db.prepare(`UPDATE leads SET channel_status = 'human_review_required' WHERE id = ?`).run(leadId);
+          // Reverte o lead para qualified para que possa ser tentado novamente
+          db.prepare(`UPDATE leads SET pipeline_status = 'qualified', channel_status = 'browser_contact_pending' WHERE id = ?`).run(leadId);
+          console.log(`🔄 [SEND_DM] Lead revertido para 'qualified' para nova tentativa.`);
         } catch (dbErr) {
-          console.error(`❌ [SEND_DM] Falha ao atualizar status do lead:`, dbErr);
+          console.error(`❌ [SEND_DM] Falha ao reverter status do lead:`, dbErr);
         }
         return { status: 'error', leadId };
       } finally {

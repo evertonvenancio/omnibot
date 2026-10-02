@@ -311,7 +311,7 @@ function runWorker(): void {
 
             sqlite.prepare(`
               UPDATE leads
-              SET pipeline_status = 'contacted', channel_status = 'waiting_inbound_reply', updated_at = CURRENT_TIMESTAMP
+              SET channel_status = 'browser_contact_pending', updated_at = CURRENT_TIMESTAMP
               WHERE id = ?
             `).run(lead.id);
 
