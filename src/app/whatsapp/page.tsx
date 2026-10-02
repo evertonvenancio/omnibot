@@ -9,6 +9,16 @@ export default function WhatsAppPage() {
   const [paused, setPaused] = useState(false);
   const [testPhone, setTestPhone] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
+  const [createCampaignError, setCreateCampaignError] = useState<string | undefined>(undefined);
+  const [startCampaignError, setStartCampaignError] = useState<string | undefined>(undefined);
+
+  const [formTemplate, setFormTemplate] = useState('');
+  const [formStartHour, setFormStartHour] = useState('');
+  const [formEndHour, setFormEndHour] = useState('');
+  const [formMinContacts, setFormMinContacts] = useState('');
+  const [formMaxContacts, setFormMaxContacts] = useState('');
+
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
 
   // Load campaign status on mount and after actions (revalidation)
   useEffect(() => {
@@ -17,6 +27,31 @@ export default function WhatsAppPage() {
       setStatus(dbStatus);
       setExists(dbExists);
       setPaused(dbPaused);
+
+      // Load existing campaign data if exists
+      if (dbExists && dbStatus === 'saved') {
+        try {
+          const response = await fetch('/api/whatsapp/campaign');
+          const data: { success: boolean; error?: string; data: any } = await response.json();
+
+          if (data.success && data.data) {
+            console.log('[WA] Campanha existente carregada:', data.data);
+            setFormTemplate(data.data.ai_template || '');
+            setFormStartHour(data.data.start_hour || '09:00');
+            setFormEndHour(data.data.end_hour || '18:00');
+            setFormMinContacts(String(data.data.min_contacts || 1));
+            setFormMaxContacts(String(data.data.max_contacts || 1));
+
+            if (data.data.days_of_week) {
+              const daysArray = data.data.days_of_week.split(',').map((d: string) => d.trim());
+              setSelectedDays(daysArray);
+            }
+            // humanization_profile é mantido interno no banco, não exibido na UI
+          }
+        } catch (error) {
+          console.error('[WA] Erro ao carregar campanha existente:', error);
+        }
+      }
     })();
   }, []);
 
@@ -51,7 +86,6 @@ export default function WhatsAppPage() {
     }
   }, [status]);
 
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const toggleDay = (day: string) => {
     setSelectedDays(prev =>
       prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
@@ -61,7 +95,6 @@ export default function WhatsAppPage() {
   const topBtn = "min-w-[140px] h-10 px-4 inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-medium transition";
   const labelClass = "text-sm font-medium text-slate-400 mb-1 block";
   const inputClass = "w-full h-10 rounded-lg bg-slate-800 border border-slate-700 px-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-600";
-  const textareaClass = `${inputClass} h-16 resize-none`;
   const baseDayBtn = "w-10 h-10 rounded-full flex items-center justify-center text-xs font-medium";
   const dayBtnClass = (selected: boolean) => selected ? "bg-slate-500 border border-slate-400 text-white" : "bg-slate-800 border border-slate-700 text-slate-300";
   const [fileName, setFileName] = useState<string>('');
@@ -73,7 +106,19 @@ export default function WhatsAppPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-slate-100">WhatsApp</h1>
         <div className="flex items-center gap-2">
           <a href="/" className={topBtn}>Voltar</a>
-          <form action={startCampaign} className="inline">
+          <form action={async () => {
+            setStartCampaignError(undefined);
+            try {
+              const result = await startCampaign();
+              if (!result.success && result.error) {
+                setStartCampaignError(result.error);
+                alert('Erro ao iniciar campanha: ' + result.error);
+                throw new Error(result.error);
+              }
+            } catch (error: any) {
+              console.error('[WA] Erro ao iniciar campanha:', error);
+            }
+          }} className="inline">
             <button type="submit" disabled={!exists || status === 'active'} className={topBtn}>Iniciar</button>
           </form>
           <form action={cancelCampaign} className="inline">
@@ -94,10 +139,31 @@ export default function WhatsAppPage() {
       </header>
 
       {/* Single Card containing all configuration, fits viewport */}
-      <form id="whatsapp-form" action={createCampaign} className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl p-8 flex flex-col gap-6 overflow-hidden">
+      <form id="whatsapp-form" action={async (formData: FormData) => {
+        setCreateCampaignError(undefined);
+        try {
+          const result = await createCampaign(formData);
+          if (!result.success && result.error) {
+            setCreateCampaignError(result.error);
+            throw new Error(result.error);
+          }
+        } catch (error: any) {
+          console.error('[WA] Erro no form:', error);
+        }
+      }} className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl p-8 flex flex-col gap-6 overflow-hidden">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Column 1 (Esquerda) */}
           <div className="flex flex-col gap-6">
+            {createCampaignError && (
+              <div className="bg-red-900/20 border border-red-800 text-red-400 p-3 rounded-lg text-sm">
+                Erro ao criar campanha: {createCampaignError}
+              </div>
+            )}
+            {startCampaignError && (
+              <div className="bg-amber-900/20 border border-amber-800 text-amber-400 p-3 rounded-lg text-sm">
+                Erro ao iniciar campanha: {startCampaignError}
+              </div>
+            )}
             {/* Linha 1: Upload de Contatos */}
             <div>
               <label className={labelClass}>Upload de contatos</label>
@@ -115,11 +181,23 @@ export default function WhatsAppPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Hora início</label>
-                <input type="time" name="start_hour" className={inputClass} />
+                <input
+                  type="time"
+                  name="start_hour"
+                  value={formStartHour}
+                  onChange={(e) => setFormStartHour(e.target.value)}
+                  className={inputClass}
+                />
               </div>
               <div>
                 <label className={labelClass}>Hora fim</label>
-                <input type="time" name="end_hour" className={inputClass} />
+                <input
+                  type="time"
+                  name="end_hour"
+                  value={formEndHour}
+                  onChange={(e) => setFormEndHour(e.target.value)}
+                  className={inputClass}
+                />
               </div>
             </div>
 
@@ -127,11 +205,25 @@ export default function WhatsAppPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Mín.</label>
-                <input type="number" name="min_contacts" min="1" className={inputClass} />
+                <input
+                  type="number"
+                  name="min_contacts"
+                  min="1"
+                  value={formMinContacts}
+                  onChange={(e) => setFormMinContacts(e.target.value)}
+                  className={inputClass}
+                />
               </div>
               <div>
                 <label className={labelClass}>Máx.</label>
-                <input type="number" name="max_contacts" min="1" className={inputClass} />
+                <input
+                  type="number"
+                  name="max_contacts"
+                  min="1"
+                  value={formMaxContacts}
+                  onChange={(e) => setFormMaxContacts(e.target.value)}
+                  className={inputClass}
+                />
               </div>
             </div>
 
@@ -179,6 +271,8 @@ export default function WhatsAppPage() {
             <textarea
               name="ai_template"
               id="input-template"
+              value={formTemplate}
+              onChange={(e) => setFormTemplate(e.target.value)}
               className="w-full flex-1 min-h-0 resize-none rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
               placeholder="Escreva o template base..."
             />
@@ -200,10 +294,13 @@ export default function WhatsAppPage() {
           </div>
         </div>
 
-        {/* Hidden inputs for days */}
+        {/* Hidden inputs for days and humanization profile */}
         {selectedDays.map(day => (
           <input key={day} type="hidden" name="days" value={day} />
         ))}
+        <input type="hidden" name="human_natural" value="60" />
+        <input type="hidden" name="human_moderated" value="30" />
+        <input type="hidden" name="human_slow" value="10" />
       </form>
     </PageContainer>
   );
