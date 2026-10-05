@@ -73,7 +73,7 @@ function runWorker(): void {
   // === LIMPEZA DE JOBS FANTASMAS (pending + running) ===
   sqlite.prepare(`
     UPDATE jobs SET status = 'failed', error_message = 'Timeout Job Fantasma (pending/running)'
-    WHERE status IN ('pending', 'running') AND datetime(created_at) < datetime('now', '-10 minutes')
+    WHERE status IN ('pending', 'running') AND datetime(updated_at) < datetime('now', '-10 minutes')
   `).run();
 
   // === BLINDAGEM: PAUSA GERAL DO SISTEMA ===
@@ -132,7 +132,7 @@ function runWorker(): void {
     SELECT id, type, payload, status, attempts, max_attempts, error_message
     FROM jobs
     WHERE status = 'pending' AND run_at <= CURRENT_TIMESTAMP
-    ORDER BY created_at ASC LIMIT 1
+    ORDER BY CASE WHEN type IN ('generate_first_dm', 'send_dm_browser') THEN 0 ELSE 1 END, created_at ASC LIMIT 1
   `).get() as JobRow | undefined;
 
   if (!job) {
