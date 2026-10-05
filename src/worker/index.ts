@@ -1,4 +1,3 @@
-
 import { sqliteInstance } from '@/db';
 import { processAiClassifyJob, runAutonomousDiscovery } from '@/features/leads/discovery';
 import { generateDailyReport } from '@/features/reports/generate-daily-report';
@@ -70,10 +69,10 @@ function isWithinOperatingWindow(): boolean {
 function runWorker(): void {
   const sqlite = sqliteInstance;
 
-  // === LIMPEZA DE JOBS FANTASMAS (pending + running) ===
+  // === LIMPEZA DE JOBS FANTASMAS (pending apenas) ===
   sqlite.prepare(`
-    UPDATE jobs SET status = 'failed', error_message = 'Timeout Job Fantasma (pending/running)'
-    WHERE status IN ('pending', 'running') AND datetime(updated_at) < datetime('now', '-10 minutes')
+    UPDATE jobs SET status = 'failed', error_message = 'Timeout Job Fantasma (pending)'
+    WHERE status = 'pending' AND datetime(updated_at) < datetime('now', '-10 minutes')
   `).run();
 
   // === BLINDAGEM: PAUSA GERAL DO SISTEMA ===
@@ -174,7 +173,7 @@ function runWorker(): void {
   }
 
   // === JANELA DE DIAS E HORÁRIOS APENAS PARA ENVIOS (DMs) ===
-  if ((job.type === 'generate_first_dm' || job.type === 'send_dm_browser') && !isWithinOperatingWindow()) {
+  if (job && (job.type === 'generate_first_dm' || job.type === 'send_dm_browser') && !isWithinOperatingWindow()) {
     if (!loggedOffHours) {
       console.log(`💤 [WORKER] Fora da janela de envios (Dias/Horário). DMs adiadas.`);
       loggedOffHours = true;
@@ -189,189 +188,193 @@ function runWorker(): void {
   }
   loggedOffHours = false;
 
-  const locked = sqlite.prepare(
-    `UPDATE jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP
-     WHERE id = ? AND status = 'pending'`
-  ).run(job.id);
+  if (job) {
+    const locked = sqlite.prepare(
+      `UPDATE jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND status = 'pending'`
+    ).run(job.id);
 
-  if (locked.changes === 0) {
-    return;
-  }
+    if (locked.changes === 0) {
+      return;
+    }
 
-  console.log(`⚙️ [WORKER] Executando job ${job.id} (Tipo: ${job.type})...`);
+    console.log(`⚙️ [WORKER] Executando job ${job.id} (Tipo: ${job.type})...`);
 
-  try {
-    if (job.type === 'ai_classify') {
-      (async () => {
-        try {
-          await processAiClassifyJob(job.payload);
-          sqlite.prepare(
-            `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-          ).run(job.id);
-          console.log(`✅ [WORKER] Job ${job.id} concluído.`);
-        } catch (err: any) {
-          console.error(`[WORKER] Erro ao classificar IA:`, err.message);
-          sqlite.prepare(
-            `UPDATE jobs SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-          ).run(err.message, job.id);
-        }
-      })();
-    } else if (job.type === 'daily_report') {
-      (async () => {
-        try {
-          const reportText = await generateDailyReport();
-          await sendWhatsAppReport(reportText);
-
-          sqlite.prepare(
-            `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-          ).run(job.id);
-
-          console.log(`✅ [WORKER] Relatório diário enviado.`);
-        } catch (err) {
-          throw err;
-        }
-      })();
-    } else if (job.type === 'weekly_report') {
-      (async () => {
-        try {
-          const reportText = await generateWeeklyReport();
-          await sendWhatsAppReport(reportText);
-
-          sqlite.prepare(
-            `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-          ).run(job.id);
-
-          console.log(`✅ [WORKER] Relatório semanal enviado.`);
-        } catch (err) {
-          throw err;
-        }
-      })();
-    } else if (job.type === 'whatsapp_worker') {
-      (async () => {
-        try {
-          const { runWhatsAppWorker } = await import('@/worker/whatsappWorker');
-          await runWhatsAppWorker();
-          sqlite.prepare(`UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(job.id);
-          console.log(`✅ [WORKER] WhatsApp worker job ${job.id} completed.`);
-        } catch (err) {
-          throw err;
-        }
-      })();
-    } else if (job.type === 'generate_first_dm') {
-      if (process.env.PROSPECTION_ONLY === 'true') {
-        console.log('[WORKER] Modo PROSPECTION_ONLY ativo. Envios bloqueados.');
-        sqlite.prepare(`UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(job.id);
-        return;
-      }
-      (async () => {
-        try {
-          const payload = JSON.parse(job.payload);
-          const leadId = payload.leadId;
-          const lead = sqlite.prepare('SELECT * FROM leads WHERE id = ?').get(leadId) as any;
-
-          if (lead) {
-            let messageContent = '';
-            let promptTokens = 0;
-            let completionTokens = 0;
-            let estimatedCost = 0;
-            let model = 'mock';
-
-            try {
-              const prompt = `Gere uma primeira abordagem comercial curta e direta em PT-BR para ${lead.full_name || lead.instagram_handle}, focada em redução de custos operacionais com drones agrícolas DJI para lavouras. Sem emojis.`;
-              const { generateCompletion } = await import('@/integrations/openai');
-              const aiResult = await generateCompletion('Você é um SDR agrícola experiente.', prompt, 'FAST', lead.id);
-
-              if (!aiResult) {
-                console.error(`[WORKER] Erro ao classificar IA para lead ${leadId}: Limite de taxa atingido ou erro 429`);
-                messageContent = 'Erro ao gerar resposta da IA - limite de taxa atingido.';
-                model = 'fallback';
-              } else {
-                messageContent = aiResult;
-                model = 'gpt-4o-mini';
-                promptTokens = prompt.length;
-                completionTokens = messageContent.length;
-                estimatedCost = (promptTokens / 1000 * 0.00015) + (completionTokens / 1000 * 0.0006);
-              }
-            } catch (aiErr: any) {
-              console.error(`❌ [WORKER] Erro de conexão com a IA para lead ${leadId}:`, aiErr.message);
-              messageContent = 'Erro ao conectar com a IA para gerar a primeira DM.';
-              model = 'fallback';
-            }
-
-            sqlite.prepare(`
-              INSERT INTO ai_calls (lead_id, model, prompt_tokens, completion_tokens, estimated_cost_usd)
-              VALUES (?, ?, ?, ?, ?)
-            `).run(lead.id, model, promptTokens, completionTokens, Number(estimatedCost.toFixed(6)));
-
-            const insertMsg = sqlite.prepare(`
-              INSERT INTO messages (lead_id, channel, direction, content, variant)
-              VALUES (?, 'BROWSER', 'OUTBOUND', ?, 'draft')
-            `).run(lead.id, messageContent);
-            console.log(`[WORKER] Mensagem salva no banco para o lead ${lead.id}. MessageId=${insertMsg.lastInsertRowid}`);
-
-            sqlite.prepare(`
-              UPDATE leads
-              SET channel_status = 'browser_contact_pending', updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `).run(lead.id);
-
-            sqlite.prepare(`
-              INSERT INTO jobs (type, payload, status, run_at)
-              VALUES ('send_dm_browser', ?, 'pending', CURRENT_TIMESTAMP)
-            `).run(JSON.stringify({ leadId: lead.id }));
-          }
-
-          sqlite.prepare(
-            `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-          ).run(job.id);
-
-          console.log(`✅ [WORKER] Primeira DM gerada e gravada na timeline para o lead ${leadId}.`);
-        } catch (err) {
-          throw err;
-        }
-      })();
-    } else if (job.type === 'send_dm_browser') {
-      if (process.env.PROSPECTION_ONLY === 'true') {
-        console.log('[WORKER] Modo PROSPECTION_ONLY ativo. Envios bloqueados.');
-        sqlite.prepare(`UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(job.id);
-        return;
-      }
-      (async () => {
-        try {
-          const { processSendDmBrowserJob } = await import('@/features/conversations/send-dm-browser');
-          const result = await processSendDmBrowserJob(JSON.stringify({ ...JSON.parse(job.payload), jobId: job.id }));
-
-          if (result.status === 'rescheduled') {
-            console.log(`⏳ [WORKER] Job ${job.id} reagendado.`);
-          } else {
+    try {
+      if (job && job.type === 'ai_classify') {
+        (async () => {
+          try {
+            await processAiClassifyJob(job.payload);
             sqlite.prepare(
               `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
             ).run(job.id);
-            console.log(`✅ [WORKER] Job ${job.id} concluído com status: ${result.status}.`);
+            console.log(`✅ [WORKER] Job ${job.id} concluído.`);
+          } catch (err: any) {
+            console.error(`[WORKER] Erro ao classificar IA:`, err.message);
+            sqlite.prepare(
+              `UPDATE jobs SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+            ).run(err.message, job.id);
           }
-        } catch (err) {
-          console.error(`❌ [WORKER] Erro crítico no processamento de DM via navegador:`, err);
-          const payload = JSON.parse(job.payload);
-          sqlite.prepare(`UPDATE leads SET channel_status = 'human_review_required' WHERE id = ?`).run(payload.leadId);
-          throw err;
+        })();
+      } else if (job && job.type === 'daily_report') {
+        (async () => {
+          try {
+            const reportText = await generateDailyReport();
+            await sendWhatsAppReport(reportText);
+
+            sqlite.prepare(
+              `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+            ).run(job.id);
+
+            console.log(`✅ [WORKER] Relatório diário enviado.`);
+          } catch (err) {
+            throw err;
+          }
+        })();
+      } else if (job && job.type === 'weekly_report') {
+        (async () => {
+          try {
+            const reportText = await generateWeeklyReport();
+            await sendWhatsAppReport(reportText);
+
+            sqlite.prepare(
+              `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+            ).run(job.id);
+
+            console.log(`✅ [WORKER] Relatório semanal enviado.`);
+          } catch (err) {
+            throw err;
+          }
+        })();
+      } else if (job && job.type === 'whatsapp_worker') {
+        (async () => {
+          try {
+            const { runWhatsAppWorker } = await import('@/worker/whatsappWorker');
+            await runWhatsAppWorker();
+            sqlite.prepare(`UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(job.id);
+            console.log(`✅ [WORKER] WhatsApp worker job ${job.id} completed.`);
+          } catch (err) {
+            throw err;
+          }
+        })();
+      } else if (job && job.type === 'generate_first_dm') {
+        if (process.env.PROSPECTION_ONLY === 'true') {
+          console.log('[WORKER] Modo PROSPECTION_ONLY ativo. Envios bloqueados.');
+          sqlite.prepare(`UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(job.id);
+          return;
         }
-      })();
-    } else {
-      throw new Error(`Tipo de job desconhecido: ${job.type}`);
+        (async () => {
+          try {
+            const payload = JSON.parse(job.payload);
+            const leadId = payload.leadId;
+            const lead = sqlite.prepare('SELECT * FROM leads WHERE id = ?').get(leadId) as any;
+
+            if (lead) {
+              let messageContent = '';
+              let promptTokens = 0;
+              let completionTokens = 0;
+              let estimatedCost = 0;
+              let model = 'mock';
+
+              try {
+                const prompt = `Gere uma primeira abordagem comercial curta e direta em PT-BR para ${lead.full_name || lead.instagram_handle}, focada em redução de custos operacionais com drones agrícolas DJI para lavouras. Sem emojis.`;
+                const { generateCompletion } = await import('@/integrations/openai');
+                const aiResult = await generateCompletion('Você é um SDR agrícola experiente.', prompt, 'FAST', lead.id);
+
+                if (!aiResult) {
+                  console.error(`[WORKER] Erro ao classificar IA para lead ${leadId}: Limite de taxa atingido ou erro 429`);
+                  messageContent = 'Erro ao gerar resposta da IA - limite de taxa atingido.';
+                  model = 'fallback';
+                } else {
+                  messageContent = aiResult;
+                  model = 'gpt-4o-mini';
+                  promptTokens = prompt.length;
+                  completionTokens = messageContent.length;
+                  estimatedCost = (promptTokens / 1000 * 0.00015) + (completionTokens / 1000 * 0.0006);
+                }
+              } catch (aiErr: any) {
+                console.error(`❌ [WORKER] Erro de conexão com a IA para lead ${leadId}:`, aiErr.message);
+                messageContent = 'Erro ao conectar com a IA para gerar a primeira DM.';
+                model = 'fallback';
+              }
+
+              sqlite.prepare(`
+                INSERT INTO ai_calls (lead_id, model, prompt_tokens, completion_tokens, estimated_cost_usd)
+                VALUES (?, ?, ?, ?, ?)
+              `).run(lead.id, model, promptTokens, completionTokens, Number(estimatedCost.toFixed(6)));
+
+              const insertMsg = sqlite.prepare(`
+                INSERT INTO messages (lead_id, channel, direction, content, variant)
+                VALUES (?, 'BROWSER', 'OUTBOUND', ?, 'draft')
+              `).run(lead.id, messageContent);
+              console.log(`[WORKER] Mensagem salva no banco para o lead ${lead.id}. MessageId=${insertMsg.lastInsertRowid}`);
+
+              sqlite.prepare(`
+                UPDATE leads
+                SET channel_status = 'browser_contact_pending', updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+              `).run(lead.id);
+
+              sqlite.prepare(`
+                INSERT INTO jobs (type, payload, status, run_at)
+                VALUES ('send_dm_browser', ?, 'pending', CURRENT_TIMESTAMP)
+              `).run(JSON.stringify({ leadId: lead.id }));
+            }
+
+            sqlite.prepare(
+              `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+            ).run(job.id);
+
+            console.log(`✅ [WORKER] Primeira DM gerada e gravada na timeline para o lead ${leadId}.`);
+          } catch (err) {
+            throw err;
+          }
+        })();
+      } else if (job && job.type === 'send_dm_browser') {
+        if (process.env.PROSPECTION_ONLY === 'true') {
+          console.log('[WORKER] Modo PROSPECTION_ONLY ativo. Envios bloqueados.');
+          sqlite.prepare(`UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(job.id);
+          return;
+        }
+        (async () => {
+          try {
+            const { processSendDmBrowserJob } = await import('@/features/conversations/send-dm-browser');
+            const result = await processSendDmBrowserJob(JSON.stringify({ ...JSON.parse(job.payload), jobId: job.id }));
+
+            if (result.status === 'rescheduled') {
+              console.log(`⏳ [WORKER] Job ${job.id} reagendado.`);
+            } else {
+              sqlite.prepare(
+                `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+              ).run(job.id);
+              console.log(`✅ [WORKER] Job ${job.id} concluído com status: ${result.status}.`);
+            }
+          } catch (err) {
+            console.error(`❌ [WORKER] Erro crítico no processamento de DM via navegador:`, err);
+            const payload = JSON.parse(job.payload);
+            sqlite.prepare(`UPDATE leads SET channel_status = 'human_review_required' WHERE id = ?`).run(payload.leadId);
+            throw err;
+          }
+        })();
+      } else if (job) {
+        throw new Error(`Tipo de job desconhecido: ${job.type}`);
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      if (job) {
+        const attempts = (job.attempts || 0) + 1;
+        const maxAttempts = job.max_attempts || 3;
+        const isDead = attempts >= maxAttempts;
+
+        sqlite.prepare(
+          `UPDATE jobs
+           SET status = ?, attempts = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
+        ).run(isDead ? 'dead_letter' : 'failed', attempts, error.message, job.id);
+
+        console.error(`❌ [WORKER] Job ${job.id} falhou (Tentativa ${attempts}):`, error.message);
+      }
     }
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    const attempts = (job.attempts || 0) + 1;
-    const maxAttempts = job.max_attempts || 3;
-    const isDead = attempts >= maxAttempts;
-
-    sqlite.prepare(
-      `UPDATE jobs
-       SET status = ?, attempts = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-    ).run(isDead ? 'dead_letter' : 'failed', attempts, error.message, job.id);
-
-    console.error(`❌ [WORKER] Job ${job.id} falhou (Tentativa ${attempts}):`, error.message);
   }
 }
 
