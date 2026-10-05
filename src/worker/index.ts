@@ -1,3 +1,6 @@
+// Define o fuso horário nativo do Node.js para São Paulo
+process.env.TZ = 'America/Sao_Paulo';
+
 import { sqliteInstance } from '@/db';
 import { processAiClassifyJob, runAutonomousDiscovery } from '@/features/leads/discovery';
 import { generateDailyReport } from '@/features/reports/generate-daily-report';
@@ -30,40 +33,27 @@ function isWithinOperatingWindow(): boolean {
   for (const r of sqliteSettings) cfg[r.key] = r.value;
 
   const hours = cfg.OPERATING_HOURS || '09:00-20:00';
-  const tz = cfg.OPERATING_TIMEZONE || 'America/Sao_Paulo';
   const daysStr = cfg.OPERATING_DAYS || '1,2,3,4,5';
   const allowedDays = daysStr.split(',').map(d => parseInt(d, 10));
 
-  try {
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      hour: 'numeric',
-      minute: 'numeric',
-      weekday: 'long',
-    });
-    const parts = fmt.formatToParts(new Date());
-    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
-    const weekdayStr = parts.find(p => p.type === 'weekday')?.value || '';
+  // Agora o Date nativo já está no fuso de São Paulo
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  const weekday = now.getDay(); // 0 = Domingo, 6 = Sábado
+  const weekdayBr = weekday === 0 ? 0 : weekday; // Converte para Sunday=0, Monday=1, etc.
 
-    const weekdayMap: Record<string, number> = {
-      Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4,
-      Friday: 5, Saturday: 6, Sunday: 0,
-    };
-    const weekday = weekdayMap[weekdayStr] || 0;
+  console.log(`[DEBUG HORARIO] Hora atual do sistema: ${hour}:${minute.toString().padStart(2, '0')}`);
 
-    const [startStr, endStr] = hours.split('-');
-    const [sh, sm] = startStr.split(':').map(Number);
-    const [eh, em] = endStr.split(':').map(Number);
-    const startM = sh * 60 + sm;
-    const endM = eh * 60 + em;
-    const curM = hour * 60 + minute;
-    const withinTime = curM >= startM && curM < endM;
-    const withinDay = allowedDays.includes(weekday);
-    return withinTime && withinDay;
-  } catch (e) {
-    return false;
-  }
+  const [startStr, endStr] = hours.split('-');
+  const [sh, sm] = startStr.split(':').map(Number);
+  const [eh, em] = endStr.split(':').map(Number);
+  const startM = sh * 60 + sm;
+  const endM = eh * 60 + em;
+  const curM = hour * 60 + minute;
+  const withinTime = curM >= startM && curM < endM;
+  const withinDay = allowedDays.includes(weekdayBr);
+  return withinTime && withinDay;
 }
 
 function runWorker(): void {
@@ -135,40 +125,7 @@ function runWorker(): void {
   `).get() as JobRow | undefined;
 
   if (!job) {
-    // === REGRA DO RADAR: Conta apenas jobs de classificação ===
-    const aiClassifyJobs = sqlite.prepare(`
-      SELECT count(*) as count FROM jobs
-      WHERE type = 'ai_classify' AND status IN ('pending', 'running')
-    `).get() as { count: number };
-
-    // === PAUSA ANTI-BANIMENTO ===
-    if (Date.now() < nextDiscoveryAllowedAt) {
-      const remainingMs = nextDiscoveryAllowedAt - Date.now();
-      const remainingMin = Math.ceil(remainingMs / 60000);
-      console.log(`💤 [WORKER] Pausa anti-banimento. Radar desativado por mais ${remainingMin} minutos.`);
-      return;
-    }
-
-    if (aiClassifyJobs.count <= 4 && !isDiscovering) {
-      console.log('[WORKER] Fila de classificação abaixo do limiar (80% do lote). Iniciando radar de prospecção autônomo...');
-      isDiscovering = true;
-      runAutonomousDiscovery()
-        .then((newLeadsCount: number) => {
-          isDiscovering = false;
-
-          // === PAUSA VARIÁVEL APÓS ESGOTO DE HASHTAGS ===
-          if (newLeadsCount === 0) {
-            const pauseMs = Math.floor(Math.random() * (1200000 - 480000 + 1)) + 480000;
-            nextDiscoveryAllowedAt = Date.now() + pauseMs;
-            const pauseMin = Math.round(pauseMs / 60000);
-            console.log(`💤 [WORKER] Todas as hashtags esgotaram. Pausando radar por ${pauseMin} minutos para evitar banimento.`);
-          }
-        })
-        .catch(err => {
-          console.error('[WORKER] Erro no radar autônomo:', err);
-          isDiscovering = false;
-        });
-    }
+    // Nenhum job disponível, retorna para não processar outros lógicas
     return;
   }
 
@@ -183,10 +140,41 @@ function runWorker(): void {
     sqlite.prepare(
       `UPDATE jobs SET status = 'pending', run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(future, job.id);
-    // Sai da função e espera o próximo setInterval natural de 5 segundos
-    return;
+    // Remove o return para continuar e processar radar ou outros jobs
   }
   loggedOffHours = false;
+
+  // === REGRA DO RADAR: Conta apenas jobs de classificação ===
+  const aiClassifyJobs = sqlite.prepare(`
+    SELECT count(*) as count FROM jobs
+    WHERE type = 'ai_classify' AND status IN ('pending', 'running')
+  `).get() as { count: number };
+
+  // === PAUSA ANTI-BANIMENTO ===
+  if (Date.now() < nextDiscoveryAllowedAt) {
+    const remainingMs = nextDiscoveryAllowedAt - Date.now();
+    const remainingMin = Math.ceil(remainingMs / 60000);
+    console.log(`💤 [WORKER] Pausa anti-banimento. Radar desativado por mais ${remainingMin} minutos.`);
+  } else if (aiClassifyJobs.count <= 4 && !isDiscovering) {
+    console.log('[WORKER] Fila de classificação abaixo do limiar (80% do lote). Iniciando radar de prospecção autônomo...');
+    isDiscovering = true;
+    runAutonomousDiscovery()
+      .then((newLeadsCount: number) => {
+        isDiscovering = false;
+
+        // === PAUSA VARIÁVEL APÓS ESGOTO DE HASHTAGS ===
+        if (newLeadsCount === 0) {
+          const pauseMs = Math.floor(Math.random() * (1200000 - 480000 + 1)) + 480000;
+          nextDiscoveryAllowedAt = Date.now() + pauseMs;
+          const pauseMin = Math.round(pauseMs / 60000);
+          console.log(`💤 [WORKER] Todas as hashtags esgotaram. Pausando radar por ${pauseMin} minutos para evitar banimento.`);
+        }
+      })
+      .catch(err => {
+        console.error('[WORKER] Erro no radar autônomo:', err);
+        isDiscovering = false;
+      });
+  }
 
   if (job) {
     const locked = sqlite.prepare(
