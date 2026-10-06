@@ -62,7 +62,7 @@ function isWithinOperatingWindow(): boolean {
   return withinTime && withinDay;
 }
 
-function runWorker(): void {
+async function runWorker(): Promise<void> {
   const sqlite = sqliteInstance;
 
   // === LIMPEZA DE JOBS FANTASMAS (pending apenas) ===
@@ -146,7 +146,8 @@ function runWorker(): void {
     sqlite.prepare(
       `UPDATE jobs SET status = 'pending', run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(future, job.id);
-    // Remove o return para continuar e processar radar ou outros jobs
+    // Restaura o return para impedir processamento do job fora do horário
+    return;
   }
   loggedOffHours = false;
 
@@ -156,30 +157,25 @@ function runWorker(): void {
     WHERE type = 'ai_classify' AND status IN ('pending', 'running')
   `).get() as { count: number };
 
-  // === PAUSA ANTI-BANIMENTO ===
-  if (Date.now() < nextDiscoveryAllowedAt) {
-    const remainingMs = nextDiscoveryAllowedAt - Date.now();
-    const remainingMin = Math.ceil(remainingMs / 60000);
-    console.log(`💤 [WORKER] Pausa anti-banimento. Radar desativado por mais ${remainingMin} minutos.`);
-  } else if (aiClassifyJobs.count <= 4 && !isDiscovering) {
+  // === RADAR SÓ RODA SE NÃO Houver JOBS PENDENTES ===
+  if (!job && Date.now() >= nextDiscoveryAllowedAt && aiClassifyJobs.count <= 4 && !isDiscovering) {
     console.log('[WORKER] Fila de classificação abaixo do limiar (80% do lote). Iniciando radar de prospecção autônomo...');
     isDiscovering = true;
-    runAutonomousDiscovery()
-      .then((newLeadsCount: number) => {
-        isDiscovering = false;
+    try {
+      const newLeadsCount = await runAutonomousDiscovery();
 
-        // === PAUSA VARIÁVEL APÓS ESGOTO DE HASHTAGS ===
-        if (newLeadsCount === 0) {
-          const pauseMs = Math.floor(Math.random() * (1200000 - 480000 + 1)) + 480000;
-          nextDiscoveryAllowedAt = Date.now() + pauseMs;
-          const pauseMin = Math.round(pauseMs / 60000);
-          console.log(`💤 [WORKER] Todas as hashtags esgotaram. Pausando radar por ${pauseMin} minutos para evitar banimento.`);
-        }
-      })
-      .catch(err => {
-        console.error('[WORKER] Erro no radar autônomo:', err);
-        isDiscovering = false;
-      });
+      // === PAUSA VARIÁVEL APÓS ESGOTO DE HASHTAGS ===
+      if (newLeadsCount === 0) {
+        const pauseMs = Math.floor(Math.random() * (1200000 - 480000 + 1)) + 480000;
+        nextDiscoveryAllowedAt = Date.now() + pauseMs;
+        const pauseMin = Math.round(pauseMs / 60000);
+        console.log(`💤 [WORKER] Todas as hashtags esgotaram. Pausando radar por ${pauseMin} minutos para evitar banimento.`);
+      }
+    } catch (err) {
+      console.error('[WORKER] Erro no radar autônomo:', err);
+    } finally {
+      isDiscovering = false;
+    }
   }
 
   if (job) {
