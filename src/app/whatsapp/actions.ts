@@ -172,10 +172,12 @@ export async function sendTestMessage(formData: FormData): Promise<string> {
 
   let generated = template;
 
-  if (apiKey && apiKey !== 'your_whatsapp_openai_api_key' && process.env.DRY_RUN !== 'true') {
+  // SEMPRE tentar reescrever com IA, exceto quando explícamente desativado
+  if (apiKey && apiKey !== 'your_whatsapp_openai_api_key') {
     try {
       const openai = new OpenAI({ apiKey, baseURL: baseUrl });
       const prompt = `Reescreva a mensagem abaixo em PT-BR, mantendo o sentido original, sem usar o nome do destinatário. Responda apenas com a mensagem reescrita, sem comentários. Mensagem original: """${template}"""`;
+      console.log('[WA TEST] Enviando para IA reescrita:', template);
       const response = await openai.chat.completions.create({
         model,
         messages: [
@@ -187,10 +189,14 @@ export async function sendTestMessage(formData: FormData): Promise<string> {
       const content = response.choices[0]?.message?.content;
       if (typeof content === 'string' && content.trim().length > 0) {
         generated = content.trim();
+        console.log('[WA TEST] Mensagem reescrita pela IA:', generated);
       }
     } catch (err) {
       console.error('[WA] Falha na IA ao gerar mensagem de teste:', err);
+      console.log('[WA TEST] Usando template original devido ao erro:', template);
     }
+  } else {
+    console.log('[WA TEST] API Key não configurada, usando template original:', template);
   }
 
   const result = await sendWhatsAppText(phone, generated);

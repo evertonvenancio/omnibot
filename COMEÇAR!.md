@@ -8,6 +8,7 @@
 
 \& "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\\Projetos\\OmniBot\\.chrome-profile"
 
+--headless=new
 
 
 * Rodar o Sistema Localmente (PowerShell NORMAL, dentro da pasta C:\\Projetos\\OmniBot):

@@ -9,6 +9,12 @@ import { sendWhatsAppReport } from '@/integrations/callmebot';
 import { getSettings } from '@/lib/settings';
 import { processFollowUps } from '@/features/conversations/followups';
 import { runWhatsAppWorker } from './whatsappWorker';
+import { ensureSingleInstance } from './process-lock';
+
+// Garantir apenas uma instância do worker rodando
+if (!ensureSingleInstance()) {
+  process.exit(1);
+}
 
 interface JobRow {
   id: number;

@@ -172,7 +172,9 @@ export async function whatsappWorker(): Promise<void> {
 
       for (const job of jobs) {
         try {
+          console.log(`[WA] Processando contato ${job.id}: template original="${campaign.ai_template}"`);
           const aiMessage = await aiRewrite(campaign.ai_template, profile);
+          console.log(`[WA] Template reescrito pela IA: "${aiMessage}"`);
           // Adiciona marcador esteganográfico para identificação de campanha
           const finalMessage = aiMessage + MARCADOR_CAMPANHA;
 
