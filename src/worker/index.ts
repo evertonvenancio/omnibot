@@ -68,7 +68,7 @@ async function runWorker(): Promise<void> {
   // === LIMPEZA DE JOBS FANTASMAS (pending apenas) ===
   sqlite.prepare(`
     UPDATE jobs SET status = 'failed', error_message = 'Timeout Job Fantasma (pending)'
-    WHERE status = 'pending' AND datetime(updated_at) < datetime('now', '-10 minutes')
+    WHERE status = 'pending' AND (run_at IS NULL OR run_at <= CURRENT_TIMESTAMP) AND datetime(updated_at) < datetime('now', '-10 minutes')
   `).run();
 
   // === BLINDAGEM: PAUSA GERAL DO SISTEMA ===
