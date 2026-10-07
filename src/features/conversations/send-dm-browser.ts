@@ -65,7 +65,14 @@ export async function processSendDmBrowserJob(payloadStr: string): Promise<{ sta
     if (!rhythm.isOperatingHours) {
       console.log('⏸️ [WORKER] Fora do horário de operação. Re-enfileirando para o próximo horário válido.');
       const nextRun = new Date();
-      nextRun.setHours(9, 0, 0, 0);
+      const sqlite = new Database(dbPath, { readonly: true });
+      const settings = sqlite.prepare('SELECT key, value FROM system_settings').all() as any[];
+      sqlite.close();
+      const map: Record<string, string> = {};
+      for (const s of settings) map[s.key] = s.value;
+      const [startStr] = (map.OPERATING_HOURS || '09:00-20:00').split('-');
+      const [startHour] = startStr.split(':').map(Number);
+      nextRun.setHours(startHour, 0, 0, 0);
       if (nextRun.getTime() <= Date.now()) nextRun.setDate(nextRun.getDate() + 1);
 
       db.prepare('UPDATE jobs SET status = ?, run_at = ? WHERE id = ?').run('pending', nextRun.toISOString(), payload.jobId);
@@ -76,7 +83,14 @@ export async function processSendDmBrowserJob(payloadStr: string): Promise<{ sta
       console.log(`🛑 [WORKER] Limite diário atingido (${todayCount}/${rhythm.maxDmsPerDay}). Re-enfileirando para amanhã.`);
       const nextRun = new Date();
       nextRun.setDate(nextRun.getDate() + 1);
-      nextRun.setHours(9, 0, 0, 0);
+      const sqlite = new Database(dbPath, { readonly: true });
+      const settings = sqlite.prepare('SELECT key, value FROM system_settings').all() as any[];
+      sqlite.close();
+      const map: Record<string, string> = {};
+      for (const s of settings) map[s.key] = s.value;
+      const [startStr] = (map.OPERATING_HOURS || '09:00-20:00').split('-');
+      const [startHour] = startStr.split(':').map(Number);
+      nextRun.setHours(startHour, 0, 0, 0);
 
       db.prepare('UPDATE jobs SET status = ?, run_at = ? WHERE id = ?').run('pending', nextRun.toISOString(), payload.jobId);
       return { status: 'rescheduled', leadId };
