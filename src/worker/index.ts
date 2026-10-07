@@ -63,7 +63,7 @@ function isWithinOperatingWindow(): boolean {
 }
 
 async function runWorker(): Promise<void> {
-  const sqlite = sqliteInstance;
+    const sqlite = sqliteInstance;
 
   // === LIMPEZA DE JOBS FANTASMAS (pending apenas) ===
   sqlite.prepare(`
@@ -131,8 +131,7 @@ async function runWorker(): Promise<void> {
   `).get() as JobRow | undefined;
 
   if (!job) {
-    // Nenhum job disponível, retorna para não processar outros lógicas
-    return;
+    // Nenhum job disponível - continua para verificar condições do radar
   }
 
   // === JANELA DE DIAS E HORÁRIOS APENAS PARA ENVIOS (DMs) ===
@@ -383,7 +382,7 @@ async function runWhatsAppLoop() {
 
 console.log('🚀 Worker iniciado. Monitorando jobs...');
 setInterval(() => {
-  try {
+    try {
     runWorker();
   } catch (e) {
     console.error('❌ [WORKER] Crash no setInterval:', e);
