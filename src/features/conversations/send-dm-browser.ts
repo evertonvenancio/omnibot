@@ -54,6 +54,7 @@ export function getTodayDmsCount(): number {
 export async function processSendDmBrowserJob(payloadStr: string): Promise<{ status: string, leadId: number }> {
   const payload = JSON.parse(payloadStr);
   const leadId = payload.leadId;
+  const jobId = payload.jobId;
   const db = new Database(dbPath);
 
   try {
@@ -88,7 +89,11 @@ export async function processSendDmBrowserJob(payloadStr: string): Promise<{ sta
     // Mutex garante uma aba por vez
     return await browserMutex.runExclusive(async () => {
       const context = await getBrowserContext();
-      if (!context) throw new Error('BROWSER_UNAVAILABLE');
+      if (!context) {
+        console.warn('⚠️ [SEND_DM] Chrome/CDP indisponível. Reagendando job para 5 minutos.');
+        db.prepare(`UPDATE jobs SET status = 'pending', run_at = datetime('now', '+5 minutes'), updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(jobId);
+        return { status: 'rescheduled', leadId };
+      }
 
       let page = null;
       try {

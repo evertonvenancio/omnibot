@@ -331,12 +331,18 @@ async function runWorker(): Promise<void> {
             const result = await processSendDmBrowserJob(JSON.stringify({ ...JSON.parse(job.payload), jobId: job.id }));
 
             if (result.status === 'rescheduled') {
-              console.log(`⏳ [WORKER] Job ${job.id} reagendado.`);
+              console.log(`⏳ [WORKER] Job ${job.id} reagendado. Chrome pode estar indisponível.`);
+              // NÃO marca como completed. O próprio módulo de envio já atualizou o run_at no banco.
+            } else if (result.status === 'error' || result.status === 'blocked') {
+              // Se deu erro de automação ou bloqueio, marca o job como failed para tentar depois
+              sqlite.prepare(`UPDATE jobs SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(job.id);
+              console.log(`❌ [WORKER] Job ${job.id} falhou (status: ${result.status}).`);
             } else {
+              // Sucesso real (status === 'sent')
               sqlite.prepare(
                 `UPDATE jobs SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
               ).run(job.id);
-              console.log(`✅ [WORKER] Job ${job.id} concluído com status: ${result.status}.`);
+              console.log(`✅ [WORKER] Job ${job.id} concluído com sucesso.`);
             }
           } catch (err) {
             console.error(`❌ [WORKER] Erro crítico no processamento de DM via navegador:`, err);
